@@ -59,9 +59,9 @@ const PALETTES = [
 /* ---------- Gray-Scott regimes (Jaiye-tuned: tubes + dots) ---------- */
 
 const REGIMES = [
-  { name: "Deep Veins",  F: 0.0545, k: 0.062, iters: 2600, t0: 0.30, seeds: [6, 14] },
-  { name: "Worm Trails", F: 0.058,  k: 0.065, iters: 4000, t0: 0.30, seeds: [20, 32] },
-  { name: "Ember Seeds", F: 0.036,  k: 0.062, iters: 4000, t0: 0.30, seeds: [10, 18] },
+  { name: "Deep Veins",  F: 0.0545, k: 0.062, iters: 2600, t0: 0.30 },
+  { name: "Worm Trails", F: 0.058,  k: 0.065, iters: 4000, t0: 0.30 },
+  { name: "Ember Seeds", F: 0.036,  k: 0.062, iters: 4000, t0: 0.30 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
@@ -74,12 +74,36 @@ function simulate(rng, regime) {
   const U = new Float64Array(n * n).fill(1);
   const V = new Float64Array(n * n).fill(0);
 
-  // deterministic seed blooms; count varies per regime
-  const blobCount = regime.seeds[0] + ((rng() * (regime.seeds[1] - regime.seeds[0])) | 0);
-  for (let b = 0; b < blobCount; b++) {
-    const cx = 20 + rng() * (n - 40);
-    const cy = 20 + rng() * (n - 40);
-    const r = 2.5 + rng() * 2.5;
+  // Jaiye-style seeding: dense jittered grid of small seeds covering the
+  // whole field — the labyrinth grows edge-to-edge with even density,
+  // like his pieces, instead of blooming from a few isolated spots
+  const gridN = 7;
+  const margin = 14; // keep the composition off the canvas edges — black frame
+  const cell = (n - 2 * margin) / gridN;
+  for (let gy = 0; gy < gridN; gy++) {
+    for (let gx = 0; gx < gridN; gx++) {
+      if (rng() < 0.15) continue; // skip some — breaks the lattice
+      const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
+      const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
+      const r = 1.5 + rng() * 1.5;
+      for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
+        for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
+          if (x < 0 || y < 0 || x >= n || y >= n) continue;
+          const dx = x - cx, dy = y - cy;
+          if (dx * dx + dy * dy <= r * r) {
+            const i = y * n + x;
+            U[i] = 0.5; V[i] = 1.0;
+          }
+        }
+      }
+    }
+  }
+  // a few wild seeds, fully off-grid (also kept off the edges)
+  const wild = 6 + ((rng() * 8) | 0);
+  for (let b = 0; b < wild; b++) {
+    const cx = 14 + rng() * (n - 28);
+    const cy = 14 + rng() * (n - 28);
+    const r = 1.5 + rng() * 1.5;
     for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
       for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
         if (x < 0 || y < 0 || x >= n || y >= n) continue;
@@ -90,6 +114,10 @@ function simulate(rng, regime) {
         }
       }
     }
+  }
+  // faint background noise so no region stays perfectly sterile
+  for (let i = 0; i < n * n; i++) {
+    if (V[i] === 0) V[i] = rng() * 0.05;
   }
 
   const F = regime.F;
@@ -115,7 +143,7 @@ function simulate(rng, regime) {
     }
     U.set(U2); V.set(V2);
   }
-  return { V, blobCount, F, K, iters };
+  return { V, F, K, iters };
 }
 
 // bilinear sample of the V field, u/v in [0,1]
@@ -188,52 +216,6 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
   }
 }
 
-// glowing concentric rings — Jaiye's circles, drawn over the field
-function renderRings(rng, pal, out) {
-  const W = out.width, H = out.height, buf = out.data;
-  const ramp = buildRamp(pal);
-  const ringCount = 2 + ((rng() * 5) | 0);
-
-  for (let r = 0; r < ringCount; r++) {
-    const cx = W * (0.12 + rng() * 0.76);
-    const cy = H * (0.12 + rng() * 0.76);
-    const R = 24 + rng() * 110;
-    const thick = 9 + rng() * 12;      // chunky, tube-like bands
-    const double = rng() < 0.45;
-    const R2 = R * (0.55 + rng() * 0.2);
-    const x0 = Math.max(0, Math.floor(cx - R - thick - 14)), x1 = Math.min(W - 1, Math.ceil(cx + R + thick + 14));
-    const y0 = Math.max(0, Math.floor(cy - R - thick - 14)), y1 = Math.min(H - 1, Math.ceil(cy + R + thick + 14));
-
-    for (let y = y0; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        const d = Math.hypot(x - cx, y - cy);
-        // ring as a tube: bright at the band's edges, darker band core (Jaiye shading)
-        const s = Math.abs(d - R), half = thick / 2;
-        const b = 1 - smoothstep(0, half, s);
-        if (b <= 0.01 && !double) continue;
-        const rimB = smoothstep(half * 0.45, half, s); // 1 near band edges
-        let bright = b * (0.45 + 0.55 * rimB);
-        if (double) {
-          const s2 = Math.abs(d - R2), half2 = half * 0.7;
-          const b2 = 1 - smoothstep(0, half2, s2);
-          const rim2 = smoothstep(half2 * 0.45, half2, s2);
-          bright = Math.max(bright, b2 * (0.45 + 0.55 * rim2) * 0.9);
-        }
-        if (bright <= 0.01) continue;
-        const halo = (1 - smoothstep(half, half + 12, s)) * 0.22;
-        bright = Math.min(bright * 0.9 + halo, 1); // sit slightly under the field's glow
-        const ri = Math.min(255, (bright * 255) | 0) * 3;
-        const i = (y * W + x) * 4;
-        const a = Math.min(bright * 1.4, 1);
-        buf[i]     = buf[i]     * (1 - a) + ramp[ri]     * a;
-        buf[i + 1] = buf[i + 1] * (1 - a) + ramp[ri + 1] * a;
-        buf[i + 2] = buf[i + 2] * (1 - a) + ramp[ri + 2] * a;
-      }
-    }
-  }
-  return ringCount;
-}
-
 /* ---------- top-level: hash -> artwork ---------- */
 
 function generate(hashStr, size) {
@@ -255,14 +237,11 @@ function generate(hashStr, size) {
   };
   const seedInt = cyrb53(String(hashStr).toLowerCase(), 0x51ab3c2d);
   renderGlow(sim.V, regime, pal, out, rng, seedInt);
-  const rings = renderRings(rng, pal, out);
 
   // Art Blocks-style traits
   out.features = {
     "Palette": pal.name,
     "Regime": regime.name,
-    "Seed blooms": String(sim.blobCount),
-    "Rings": String(rings),
     "Iterations": String(sim.iters),
   };
   out.palette = pal.name;

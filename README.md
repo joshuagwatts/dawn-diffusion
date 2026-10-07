@@ -9,10 +9,13 @@ Live demo: https://joshuagwatts.github.io/dawn-diffusion/
 
 ## What it does
 
-A Gray-Scott reaction-diffusion simulation grows an organic field from seeded
-"blooms"; the field is rendered as glowing tubes — brightest ring right at the
-tube boundary, darker copper core inside, faint halo spilling outward.
-`docs/reference.jpg` is one of Jaiye's actual pieces, the style target.
+A Gray-Scott reaction-diffusion simulation grows an organic field from a dense
+jittered grid of seeds covering the whole canvas — the labyrinth grows
+edge-to-edge with even density, the way his pieces do, with a black frame
+around the composition. The field renders as glowing tubes: brightest ring
+right at the tube boundary, darker copper core inside, faint halo spilling
+outward, subtle interior marbling and hand grain. `docs/reference.jpg` is one
+of Jaiye's actual pieces, the style target.
 
 Everything derives from a 64-hex hash (like `tokenData.hash`):
 - same hash → same artwork, every time (seeded PRNG, no `Math.random()` anywhere)
@@ -20,9 +23,7 @@ Everything derives from a 64-hex hash (like `tokenData.hash`):
 - traits exposed as `window.$features` (Palette, Regime, Seed blooms, Rings, Iterations)
 
 Three regimes, all Jaiye-tuned: **Deep Veins** (bold labyrinth loops),
-**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field). Glowing
-concentric **rings** float over the field; tubes carry subtle interior marbling
-and hand grain.
+**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field).
 
 ## Run it
 

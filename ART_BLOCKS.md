@@ -9,7 +9,7 @@ How this repo maps to an Art Blocks drop, and what's left for Jaiye.
       no `Date.now()`, no external requests, no CDN scripts. Same hash always
       grows the same piece (verified by `node test.js`).
 - [x] **`window.$features` traits** — every piece reports Palette, Regime,
-      Seed blooms, Rings, Iterations. The browser demo sets
+      Iterations. The browser demo sets
       `window.tokenData = { hash, tokenId }` exactly the way Art Blocks injects it.
 - [x] **Static, capturable output** — 1080×1080, renders in ~1s, no animation
       loop, so Art Blocks' static thumbnail capture just works.

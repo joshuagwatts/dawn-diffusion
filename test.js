@@ -33,7 +33,7 @@ check("seeded RNG stable", r1 === r2);
 // 5. traits present (Art Blocks $features contract)
 const f = a.features;
 check("features complete",
-  f && f.Palette && f.Regime && f["Seed blooms"] && f.Rings && f.Iterations,
+  f && f.Palette && f.Regime && f.Iterations,
   JSON.stringify(f));
 
 // 6. every regime develops a real field (coverage sanity, catches param drift)
