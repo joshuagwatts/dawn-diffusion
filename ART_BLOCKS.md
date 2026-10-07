@@ -41,7 +41,7 @@ How this repo maps to an Art Blocks drop, and what's left for Jaiye.
 
 ## Notes for the application
 
-- The engine's three regimes (Deep Veins / Worm Trails / Ember Seeds) give the
+- The engine's three regimes (Worm Field / Deep Drift / Ember Seeds) give the
   collection its range; palettes are weighted ~45% to his signature Copper Ember.
 - Edition size is his call — the script holds up across hundreds of hashes
   (test mints will confirm no hash produces a broken output).

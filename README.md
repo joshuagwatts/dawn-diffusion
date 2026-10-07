@@ -22,8 +22,8 @@ Everything derives from a 64-hex hash (like `tokenData.hash`):
 - palettes, Gray-Scott regime, seed blooms all derive from the hash
 - traits exposed as `window.$features` (Palette, Regime, Seed blooms, Rings, Iterations)
 
-Three regimes, all Jaiye-tuned: **Deep Veins** (bold labyrinth loops),
-**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field).
+Three regimes, all Jaiye-tuned: **Worm Field** (fat worm segments),
+**Deep Drift** (longer worms), **Ember Seeds** (pill/dot field).
 
 ## Run it
 

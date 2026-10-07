@@ -59,9 +59,9 @@ const PALETTES = [
 /* ---------- Gray-Scott regimes (Jaiye-tuned: tubes + dots) ---------- */
 
 const REGIMES = [
-  { name: "Deep Veins",  F: 0.0545, k: 0.062, iters: 2600, t0: 0.30 },
-  { name: "Worm Trails", F: 0.058,  k: 0.065, iters: 4000, t0: 0.30 },
-  { name: "Ember Seeds", F: 0.036,  k: 0.062, iters: 4000, t0: 0.30 },
+  { name: "Worm Field",  F: 0.058, k: 0.065, iters: 4500, t0: 0.25 },
+  { name: "Deep Drift",  F: 0.058, k: 0.065, iters: 6500, t0: 0.25 },
+  { name: "Ember Seeds", F: 0.036, k: 0.062, iters: 4000, t0: 0.28 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
@@ -74,18 +74,18 @@ function simulate(rng, regime) {
   const U = new Float64Array(n * n).fill(1);
   const V = new Float64Array(n * n).fill(0);
 
-  // Jaiye-style seeding: dense jittered grid of small seeds covering the
-  // whole field — the labyrinth grows edge-to-edge with even density,
-  // like his pieces, instead of blooming from a few isolated spots
-  const gridN = 7;
-  const margin = 14; // keep the composition off the canvas edges — black frame
+  // Jaiye-style seeding: dense jittered grid of fat seeds, full-bleed —
+  // his pieces are fields of discrete worm segments edge-to-edge,
+  // not a connected maze and not framed
+  const gridN = 10;
+  const margin = 4;
   const cell = (n - 2 * margin) / gridN;
   for (let gy = 0; gy < gridN; gy++) {
     for (let gx = 0; gx < gridN; gx++) {
-      if (rng() < 0.15) continue; // skip some — breaks the lattice
+      if (rng() < 0.05) continue; // skip a few — breaks the lattice
       const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
       const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
-      const r = 1.5 + rng() * 1.5;
+      const r = 2 + rng() * 1.5;
       for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
         for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
           if (x < 0 || y < 0 || x >= n || y >= n) continue;
@@ -99,11 +99,11 @@ function simulate(rng, regime) {
     }
   }
   // a few wild seeds, fully off-grid (also kept off the edges)
-  const wild = 6 + ((rng() * 8) | 0);
+  const wild = 10 + ((rng() * 8) | 0);
   for (let b = 0; b < wild; b++) {
-    const cx = 14 + rng() * (n - 28);
-    const cy = 14 + rng() * (n - 28);
-    const r = 1.5 + rng() * 1.5;
+    const cx = 6 + rng() * (n - 12);
+    const cy = 6 + rng() * (n - 12);
+    const r = 2 + rng() * 1.5;
     for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
       for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
         if (x < 0 || y < 0 || x >= n || y >= n) continue;
