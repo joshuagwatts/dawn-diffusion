@@ -1,7 +1,8 @@
 /* dawn-diffusion core — pure, DOM-free generative art engine.
  *
- * Reaction-diffusion (Gray-Scott) simulation driving stylized hand-drawn-style
- * flow lines. Everything is seeded from a 64-hex hash string (Art Blocks style:
+ * Reaction-diffusion (Gray-Scott) fields rendered in Jaiye's vocabulary:
+ * thick glowing tubes with bright rims on black, scattered pill dots.
+ * Everything is seeded from a 64-hex hash string (Art Blocks style:
  * tokenData.hash), so the same hash always produces the same artwork.
  *
  * No Math.random() anywhere. Works in Node (for tests) and in the browser.
@@ -45,25 +46,22 @@ function randomHex(rng, len) {
   return s;
 }
 
-/* ---------- palettes (name kept as a trait) ---------- */
+/* ---------- palettes (signature copper weighted first) ---------- */
 
 const PALETTES = [
-  { name: "Ink Paper",    bg: [244, 239, 230], ink: [26, 24, 22],   tint: [150, 132, 100] },
-  { name: "Indigo Night", bg: [14, 16, 48],    ink: [141, 205, 255], tint: [52, 58, 150] },
-  { name: "Copper Ember", bg: [20, 11, 8],     ink: [224, 138, 60],  tint: [120, 52, 20] },
-  { name: "Moss",         bg: [16, 20, 8],     ink: [157, 192, 139], tint: [48, 74, 40] },
-  { name: "Ultraviolet",  bg: [23, 10, 46],    ink: [180, 107, 255], tint: [74, 34, 130] },
-  { name: "Bone",         bg: [239, 233, 220], ink: [64, 52, 42],    tint: [168, 146, 120] },
+  { name: "Copper Ember", sig: true, bg: [0, 0, 0],      core: [58, 18, 6],   mid: [196, 106, 40],  rim: [255, 233, 200] },
+  { name: "Bone Glow",    sig: false, bg: [0, 0, 0],     core: [40, 36, 30],  mid: [180, 168, 148], rim: [255, 250, 240] },
+  { name: "Indigo Vein",  sig: false, bg: [2, 3, 12],    core: [18, 20, 70],  mid: [70, 110, 230],  rim: [215, 232, 255] },
+  { name: "Moss Light",   sig: false, bg: [2, 6, 2],     core: [24, 52, 22],  mid: [120, 180, 90],  rim: [240, 255, 220] },
+  { name: "Blood Moon",   sig: false, bg: [6, 0, 0],     core: [70, 8, 8],     mid: [200, 60, 40],   rim: [255, 214, 190] },
 ];
 
-/* ---------- Gray-Scott regimes (feed/kill + feel) ---------- */
+/* ---------- Gray-Scott regimes (Jaiye-tuned: tubes + dots) ---------- */
 
 const REGIMES = [
-  { name: "Coral Bloom",   F: 0.0545, k: 0.062,  iters: 1050, lineLen: 200, lineWidth: 1.0 },
-  { name: "Mitosis",       F: 0.014,  k: 0.054,  iters: 1400, lineLen: 170, lineWidth: 1.2 },
-  { name: "Worm Trails",   F: 0.058,  k: 0.065,  iters: 950,  lineLen: 230, lineWidth: 0.9 },
-  { name: "Stone Spots",   F: 0.039,  k: 0.058,  iters: 1250, lineLen: 150, lineWidth: 1.3 },
-  { name: "Deep Current",  F: 0.062,  k: 0.0609, iters: 900,  lineLen: 240, lineWidth: 0.8 },
+  { name: "Deep Veins",  F: 0.0545, k: 0.062, iters: 2600, t0: 0.30, seeds: [6, 14] },
+  { name: "Worm Trails", F: 0.058,  k: 0.065, iters: 4000, t0: 0.30, seeds: [20, 32] },
+  { name: "Ember Seeds", F: 0.036,  k: 0.062, iters: 4000, t0: 0.30, seeds: [10, 18] },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
@@ -76,12 +74,12 @@ function simulate(rng, regime) {
   const U = new Float64Array(n * n).fill(1);
   const V = new Float64Array(n * n).fill(0);
 
-  // deterministic seed blobs scattered across the field
-  const blobCount = 8 + ((rng() * 12) | 0);
+  // deterministic seed blooms; count varies per regime
+  const blobCount = regime.seeds[0] + ((rng() * (regime.seeds[1] - regime.seeds[0])) | 0);
   for (let b = 0; b < blobCount; b++) {
-    const cx = 12 + rng() * (n - 24);
-    const cy = 12 + rng() * (n - 24);
-    const r = 2 + rng() * 3;
+    const cx = 20 + rng() * (n - 40);
+    const cy = 20 + rng() * (n - 40);
+    const r = 2.5 + rng() * 2.5;
     for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
       for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
         if (x < 0 || y < 0 || x >= n || y >= n) continue;
@@ -94,9 +92,9 @@ function simulate(rng, regime) {
     }
   }
 
-  const F = regime.F + (rng() - 0.5) * 0.004;
-  const K = regime.k + (rng() - 0.5) * 0.004;
-  const iters = regime.iters + ((rng() * 400) | 0);
+  const F = regime.F;
+  const K = regime.k;
+  const iters = regime.iters + ((rng() * 300) | 0);
 
   const U2 = new Float64Array(n * n), V2 = new Float64Array(n * n);
   for (let t = 0; t < iters; t++) {
@@ -131,87 +129,52 @@ function sampleV(V, u, v) {
   return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
 }
 
-/* ---------- flow-line rendering (the "hand drawn" layer) ---------- */
-
-function renderLines(rng, V, regime, pal, out) {
-  const W = out.width, H = out.height, buf = out.data;
-  const lineCount = 4200 + ((rng() * 4200) | 0);
-  const step = 3;
-  const baseLen = regime.lineLen + ((rng() * 60) | 0);
-  const wobbleAmp = 0.25 + rng() * 0.55;
-  const followContour = 0.72 + rng() * 0.2; // bias toward contour-following
-  const ink = pal.ink;
-
-  for (let l = 0; l < lineCount; l++) {
-    let px = rng() * W, py = rng() * H;
-    const len = baseLen * (0.45 + rng() * 1.1);
-    const phase = rng() * Math.PI * 2;
-    const wobbleFreq = 0.05 + rng() * 0.08;
-    const width = regime.lineWidth * (0.7 + rng() * 0.8);
-    const alphaBase = 0.16 + rng() * 0.30;
-    const steps = Math.max(8, (len / step) | 0);
-
-    for (let s = 0; s < steps; s++) {
-      const t = s / steps;
-      // field at current point
-      const vHere = sampleV(V, px / W, py / H);
-      const e = 1.5 / W;
-      const gx = (sampleV(V, (px + e * W) / W, py / H) - sampleV(V, (px - e * W) / W, py / H)) / (2 * e);
-      const gy = (sampleV(V, px / W, (py + e * H) / H) - sampleV(V, px / W, (py - e * H) / H)) / (2 * e);
-      const gLen = Math.hypot(gx, gy) + 1e-6;
-      // contour direction (perpendicular to gradient) blended with gradient
-      const cx = -gy / gLen, cy = gx / gLen;
-      let dx = cx * followContour + (gx / gLen) * (1 - followContour) * (vHere > 0.5 ? 1 : -1);
-      let dy = cy * followContour + (gy / gLen) * (1 - followContour) * (vHere > 0.5 ? 1 : -1);
-      // hand-drawn wobble
-      const w = Math.sin(s * wobbleFreq + phase) * wobbleAmp;
-      const ang = Math.atan2(dy, dx) + w;
-      const dl = Math.hypot(dx, dy) + 1e-6;
-      px += (Math.cos(ang)) * step; py += (Math.sin(ang)) * step;
-      if (px < 0 || py < 0 || px >= W || py >= H) break;
-
-      const taper = Math.sin(Math.PI * Math.min(Math.max(t, 0), 1));
-      const a = alphaBase * taper * (0.55 + 0.45 * vHere);
-      if (a <= 0.003) continue;
-      // 3x3 splat
-      const xi = px | 0, yi = py | 0;
-      for (let oy = -1; oy <= 1; oy++) {
-        for (let ox = -1; ox <= 1; ox++) {
-          const X = xi + ox, Y = yi + oy;
-          if (X < 0 || Y < 0 || X >= W || Y >= H) continue;
-          const fall = ox === 0 && oy === 0 ? 1 : 0.45;
-          const i = (Y * W + X) * 4;
-          const aa = a * fall * width;
-          buf[i]   += (ink[0] / 255 - buf[i])   * aa;
-          buf[i+1] += (ink[1] / 255 - buf[i+1]) * aa;
-          buf[i+2] += (ink[2] / 255 - buf[i+2]) * aa;
-          buf[i+3] = 1;
-        }
-      }
-    }
-  }
-  return { lineCount, lineLen: baseLen };
+function smoothstep(a, b, x) {
+  const t = Math.min(Math.max((x - a) / (b - a), 0), 1);
+  return t * t * (3 - 2 * t);
 }
 
-// soft tint underlay from the V field (the "reaction diffusion read")
-function renderTint(V, pal, out) {
+/* ---------- Jaiye-style glow-tube rendering ---------- */
+
+function buildRamp(pal) {
+  // 256-entry ramp: bg -> core -> mid -> rim
+  const ramp = new Float32Array(256 * 3);
+  const stops = [
+    [0.00, pal.bg], [0.42, pal.core], [0.72, pal.mid], [1.00, pal.rim],
+  ];
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255;
+    let s = 0;
+    while (s < stops.length - 2 && t > stops[s + 1][0]) s++;
+    const t0 = stops[s][0], t1 = stops[s + 1][0];
+    const f = Math.min(Math.max((t - t0) / (t1 - t0), 0), 1);
+    for (let c = 0; c < 3; c++) {
+      ramp[i * 3 + c] = (stops[s][1][c] + (stops[s + 1][1][c] - stops[s][1][c]) * f) / 255;
+    }
+  }
+  return ramp;
+}
+
+function renderGlow(V, regime, pal, out) {
   const W = out.width, H = out.height, buf = out.data;
-  const stride = 4;
-  const tint = pal.tint;
-  for (let y = 0; y < H; y += stride) {
-    for (let x = 0; x < W; x += stride) {
-      const v = sampleV(V, x / W, y / H);
-      if (v < 0.04) continue;
-      const a = Math.min(0.55, v * 0.6);
-      for (let oy = 0; oy < stride && y + oy < H; oy++) {
-        for (let ox = 0; ox < stride && x + ox < W; ox++) {
-          const i = ((y + oy) * W + (x + ox)) * 4;
-          buf[i]   = buf[i]   * (1 - a) + (tint[0] / 255) * a;
-          buf[i+1] = buf[i+1] * (1 - a) + (tint[1] / 255) * a;
-          buf[i+2] = buf[i+2] * (1 - a) + (tint[2] / 255) * a;
-          buf[i+3] = 1;
-        }
-      }
+  const ramp = buildRamp(pal);
+  const t0 = regime.t0;
+
+  for (let y = 0; y < H; y++) {
+    const vUv = y / H;
+    for (let x = 0; x < W; x++) {
+      const uUv = x / W;
+      const v = sampleV(V, uUv, vUv);
+
+      // Jaiye's tube: brightest ring right at the boundary, darker core inside
+      const edge = smoothstep(t0 - 0.06, t0 + 0.015, v);  // reaches 1 at the tube edge
+      const core = smoothstep(t0 + 0.015, t0 + 0.28, v);   // fills the interior
+      const halo = smoothstep(t0 - 0.28, t0 - 0.06, v) * 0.22; // faint spill outside
+      const bright = Math.min(edge * (1 - 0.62 * core) + halo, 1);
+
+      const ri = Math.min(255, (bright * 255) | 0) * 3;
+      const i = (y * W + x) * 4;
+      buf[i] = ramp[ri]; buf[i + 1] = ramp[ri + 1]; buf[i + 2] = ramp[ri + 2]; buf[i + 3] = 1;
     }
   }
 }
@@ -222,7 +185,11 @@ function generate(hashStr, size) {
   size = size || 1080;
   const rng = hashToRng(hashStr);
   const regime = REGIMES[(rng() * REGIMES.length) | 0];
-  const pal = PALETTES[(rng() * PALETTES.length) | 0];
+  // signature palette (his copper) gets ~45% weight
+  let pal;
+  const sigs = PALETTES.filter(p => p.sig), rest = PALETTES.filter(p => !p.sig);
+  if (rng() < 0.45) pal = sigs[(rng() * sigs.length) | 0];
+  else pal = rest[(rng() * rest.length) | 0];
 
   const sim = simulate(rng, regime);
 
@@ -231,21 +198,12 @@ function generate(hashStr, size) {
     data: new Float32Array(size * size * 4),
     hash: String(hashStr),
   };
-  // background fill
-  const buf = out.data;
-  for (let i = 0; i < buf.length; i += 4) {
-    buf[i] = pal.bg[0] / 255; buf[i + 1] = pal.bg[1] / 255;
-    buf[i + 2] = pal.bg[2] / 255; buf[i + 3] = 1;
-  }
-
-  renderTint(sim.V, pal, out);
-  const lines = renderLines(rng, sim.V, regime, pal, out);
+  renderGlow(sim.V, regime, pal, out);
 
   // Art Blocks-style traits
   out.features = {
     "Palette": pal.name,
     "Regime": regime.name,
-    "Line count": String(lines.lineCount),
     "Seed blooms": String(sim.blobCount),
     "Iterations": String(sim.iters),
   };
@@ -264,6 +222,6 @@ function checksum(out) {
   return (h >>> 0).toString(16);
 }
 
-const api = { generate, checksum, hashToRng, randomHex, PALETTES, REGIMES, cyrb53, mulberry32 };
+const api = { generate, checksum, hashToRng, randomHex, PALETTES, REGIMES, cyrb53, mulberry32, simulate, renderGlow, sampleV, smoothstep };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else if (typeof window !== "undefined") window.DawnDiffusion = api;

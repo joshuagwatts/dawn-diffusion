@@ -1,19 +1,26 @@
 # dawn-diffusion
 
-Generative reaction-diffusion line art — a working, deterministic mint demo in
-the Art Blocks style, built for **Jaiye** ([@dawnjaiye](https://www.instagram.com/dawnjaiye/)).
+Generative reaction-diffusion art in **Jaiye**'s vocabulary — thick glowing
+tubes with bright rims on black, scattered pill dots. A working, deterministic
+mint demo in the Art Blocks style, built for
+[@dawnjaiye](https://www.instagram.com/dawnjaiye/).
+
+Live demo: https://joshuagwatts.github.io/dawn-diffusion/
 
 ## What it does
 
 A Gray-Scott reaction-diffusion simulation grows an organic field from seeded
-"blooms"; thousands of flow lines then follow the field's contours with
-hand-drawn wobble, taper, and alpha variation — reaction-diffusion stylized
-line work, rendered as a 1080×1080 piece.
+"blooms"; the field is rendered as glowing tubes — brightest ring right at the
+tube boundary, darker copper core inside, faint halo spilling outward.
+`docs/reference.jpg` is one of Jaiye's actual pieces, the style target.
 
 Everything derives from a 64-hex hash (like `tokenData.hash`):
 - same hash → same artwork, every time (seeded PRNG, no `Math.random()` anywhere)
-- palettes, Gray-Scott regime, seed blooms, line count all derive from the hash
-- traits exposed as `window.$features` (Palette, Regime, Line count, Seed blooms, Iterations)
+- palettes, Gray-Scott regime, seed blooms all derive from the hash
+- traits exposed as `window.$features` (Palette, Regime, Seed blooms, Iterations)
+
+Three regimes, all Jaiye-tuned: **Deep Veins** (bold labyrinth loops),
+**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field).
 
 ## Run it
 
