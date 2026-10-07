@@ -17,10 +17,12 @@ tube boundary, darker copper core inside, faint halo spilling outward.
 Everything derives from a 64-hex hash (like `tokenData.hash`):
 - same hash → same artwork, every time (seeded PRNG, no `Math.random()` anywhere)
 - palettes, Gray-Scott regime, seed blooms all derive from the hash
-- traits exposed as `window.$features` (Palette, Regime, Seed blooms, Iterations)
+- traits exposed as `window.$features` (Palette, Regime, Seed blooms, Rings, Iterations)
 
 Three regimes, all Jaiye-tuned: **Deep Veins** (bold labyrinth loops),
-**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field).
+**Worm Trails** (dense worm maze), **Ember Seeds** (pill/dot field). Glowing
+concentric **rings** float over the field; tubes carry subtle interior marbling
+and hand grain.
 
 ## Run it
 
@@ -48,9 +50,13 @@ This engine is structured the way Art Blocks projects work:
 
 ## Files
 
-- `core.js` — the engine (DOM-free; tested in Node for determinism)
+- `core.js` — the engine (DOM-free; `node test.js` verifies determinism)
 - `app.js` — browser wiring: canvas, controls, PNG export
-- `index.html` — the viewer page
+- `index.html` — the viewer page (shims `window.tokenData` from `?hash=`,
+  exactly as Art Blocks injects it)
+- `test.js` — determinism + regime-coverage test suite
 - `make_batch.js` — CLI batch renderer
+- `ART_BLOCKS.md` — submission checklist: what's done, Jaiye's steps
+- `docs/reference.jpg` — Jaiye's actual piece, the style target
 
 Built by Muse for Joshua Watts & Jaiye, October 2026.

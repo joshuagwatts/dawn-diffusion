@@ -155,10 +155,11 @@ function buildRamp(pal) {
   return ramp;
 }
 
-function renderGlow(V, regime, pal, out) {
+function renderGlow(V, regime, pal, out, rng, seedInt) {
   const W = out.width, H = out.height, buf = out.data;
   const ramp = buildRamp(pal);
   const t0 = regime.t0;
+  const phase = rng() * Math.PI * 2; // marbling phase, deterministic per piece
 
   for (let y = 0; y < H; y++) {
     const vUv = y / H;
@@ -170,13 +171,67 @@ function renderGlow(V, regime, pal, out) {
       const edge = smoothstep(t0 - 0.06, t0 + 0.015, v);  // reaches 1 at the tube edge
       const core = smoothstep(t0 + 0.015, t0 + 0.28, v);   // fills the interior
       const halo = smoothstep(t0 - 0.28, t0 - 0.06, v) * 0.22; // faint spill outside
-      const bright = Math.min(edge * (1 - 0.62 * core) + halo, 1);
+      let bright = Math.min(edge * (1 - 0.62 * core) + halo, 1);
+
+      // interior marbling — subtle striation inside the tubes
+      bright *= 0.96 + 0.04 * Math.sin(v * 36 + phase);
+      // hand grain — tiny deterministic pixel noise
+      let n = (x * 374761393 + y * 668265263 + seedInt * 974634211) | 0;
+      n = Math.imul(n ^ (n >>> 13), 1274126177);
+      const grain = (((n ^ (n >>> 16)) >>> 0) / 4294967296 - 0.5) * 0.035;
+      bright = Math.min(Math.max(bright + grain * (0.2 + bright), 0), 1);
 
       const ri = Math.min(255, (bright * 255) | 0) * 3;
       const i = (y * W + x) * 4;
       buf[i] = ramp[ri]; buf[i + 1] = ramp[ri + 1]; buf[i + 2] = ramp[ri + 2]; buf[i + 3] = 1;
     }
   }
+}
+
+// glowing concentric rings — Jaiye's circles, drawn over the field
+function renderRings(rng, pal, out) {
+  const W = out.width, H = out.height, buf = out.data;
+  const ramp = buildRamp(pal);
+  const ringCount = 2 + ((rng() * 5) | 0);
+
+  for (let r = 0; r < ringCount; r++) {
+    const cx = W * (0.12 + rng() * 0.76);
+    const cy = H * (0.12 + rng() * 0.76);
+    const R = 24 + rng() * 110;
+    const thick = 9 + rng() * 12;      // chunky, tube-like bands
+    const double = rng() < 0.45;
+    const R2 = R * (0.55 + rng() * 0.2);
+    const x0 = Math.max(0, Math.floor(cx - R - thick - 14)), x1 = Math.min(W - 1, Math.ceil(cx + R + thick + 14));
+    const y0 = Math.max(0, Math.floor(cy - R - thick - 14)), y1 = Math.min(H - 1, Math.ceil(cy + R + thick + 14));
+
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const d = Math.hypot(x - cx, y - cy);
+        // ring as a tube: bright at the band's edges, darker band core (Jaiye shading)
+        const s = Math.abs(d - R), half = thick / 2;
+        const b = 1 - smoothstep(0, half, s);
+        if (b <= 0.01 && !double) continue;
+        const rimB = smoothstep(half * 0.45, half, s); // 1 near band edges
+        let bright = b * (0.45 + 0.55 * rimB);
+        if (double) {
+          const s2 = Math.abs(d - R2), half2 = half * 0.7;
+          const b2 = 1 - smoothstep(0, half2, s2);
+          const rim2 = smoothstep(half2 * 0.45, half2, s2);
+          bright = Math.max(bright, b2 * (0.45 + 0.55 * rim2) * 0.9);
+        }
+        if (bright <= 0.01) continue;
+        const halo = (1 - smoothstep(half, half + 12, s)) * 0.22;
+        bright = Math.min(bright * 0.9 + halo, 1); // sit slightly under the field's glow
+        const ri = Math.min(255, (bright * 255) | 0) * 3;
+        const i = (y * W + x) * 4;
+        const a = Math.min(bright * 1.4, 1);
+        buf[i]     = buf[i]     * (1 - a) + ramp[ri]     * a;
+        buf[i + 1] = buf[i + 1] * (1 - a) + ramp[ri + 1] * a;
+        buf[i + 2] = buf[i + 2] * (1 - a) + ramp[ri + 2] * a;
+      }
+    }
+  }
+  return ringCount;
 }
 
 /* ---------- top-level: hash -> artwork ---------- */
@@ -198,13 +253,16 @@ function generate(hashStr, size) {
     data: new Float32Array(size * size * 4),
     hash: String(hashStr),
   };
-  renderGlow(sim.V, regime, pal, out);
+  const seedInt = cyrb53(String(hashStr).toLowerCase(), 0x51ab3c2d);
+  renderGlow(sim.V, regime, pal, out, rng, seedInt);
+  const rings = renderRings(rng, pal, out);
 
   // Art Blocks-style traits
   out.features = {
     "Palette": pal.name,
     "Regime": regime.name,
     "Seed blooms": String(sim.blobCount),
+    "Rings": String(rings),
     "Iterations": String(sim.iters),
   };
   out.palette = pal.name;
