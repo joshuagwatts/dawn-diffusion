@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dawn-diffusion — generative reaction-diffusion line art</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px;
+    background: #0b0b0e; color: #e8e6e1;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    display: flex; flex-direction: column; align-items: center;
+    min-height: 100vh;
+  }
+  h1 { font-size: 18px; letter-spacing: 2px; margin: 0 0 4px; font-weight: 600; }
+  p.sub { color: #8a8a92; font-size: 13px; margin: 0 0 20px; text-align: center; max-width: 560px; }
+  canvas#art {
+    width: min(80vmin, 640px); height: min(80vmin, 640px);
+    border: 1px solid #2a2a30; border-radius: 4px;
+    background: #000;
+  }
+  .controls {
+    margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+    align-items: center;
+  }
+  input#hash {
+    width: 340px; max-width: 80vw; padding: 8px 10px;
+    background: #141419; border: 1px solid #33333c; color: #e8e6e1;
+    border-radius: 4px; font: inherit; font-size: 12px;
+  }
+  button {
+    padding: 8px 14px; font: inherit; font-size: 13px; cursor: pointer;
+    background: #1d1d24; color: #e8e6e1; border: 1px solid #3a3a46; border-radius: 4px;
+  }
+  button:hover { background: #26262f; }
+  #status { margin-top: 12px; font-size: 12px; color: #8a8a92; min-height: 16px; }
+  ul#traits {
+    list-style: none; padding: 0; margin: 8px 0 0;
+    display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;
+    font-size: 12px; color: #b9b7b0;
+  }
+  ul#traits li span { color: #6f6f78; }
+  footer { margin-top: 24px; font-size: 11px; color: #55555e; text-align: center; }
+  footer a { color: #8a8a92; }
+</style>
+</head>
+<body>
+  <h1>DAWN-DIFFUSION</h1>
+  <p class="sub">Reaction-diffusion fields, drawn as hand-style flow lines.
+    Every piece is deterministic: the same hash always grows the same artwork.</p>
+
+  <canvas id="art" width="1080" height="1080"></canvas>
+
+  <div class="controls">
+    <input id="hash" spellcheck="false" placeholder="64-hex hash">
+    <button id="generate">Grow</button>
+    <button id="reroll">Re-roll</button>
+    <button id="export">Export PNG</button>
+  </div>
+  <div id="status"></div>
+  <ul id="traits"></ul>
+
+  <footer>
+    A generative demo for <a href="https://www.instagram.com/dawnjaiye/">@dawnjaiye</a> —
+    Art Blocks-style: <code>window.tokenData.hash</code> seeds the piece,
+    <code>window.$features</code> carries the traits. No external dependencies.
+  </footer>
+
+  <script src="core.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
