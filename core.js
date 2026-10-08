@@ -1,7 +1,7 @@
 /* dawn-diffusion core — pure, DOM-free generative art engine.
  *
  * Reaction-diffusion (Gray-Scott) fields rendered in Jaiye's vocabulary:
- * thick glowing tubes with bright rims on black, scattered pill dots.
+ * hand-inked worm segments with soft rims and ink pooling on black.
  * Everything is seeded from a 64-hex hash string (Art Blocks style:
  * tokenData.hash), so the same hash always produces the same artwork.
  *
@@ -58,15 +58,16 @@ const PALETTES = [
 
 /* ---------- Gray-Scott regimes (Jaiye-tuned: tubes + dots) ---------- */
 
+// No spots regime: Joshua ruled out round puddle-circles (2026-10-08).
+// Every piece grows discrete worm segments only.
 const REGIMES = [
   { name: "Worm Field",  F: 0.058, k: 0.065, iters: 4500, t0: 0.25 },
   { name: "Deep Drift",  F: 0.058, k: 0.065, iters: 6500, t0: 0.25 },
-  { name: "Ember Seeds", F: 0.036, k: 0.062, iters: 4000, t0: 0.28 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
 
-const SIM = 128;
+const SIM = 192; // bumped 2026-10-08 — thinner, denser worms (width is fixed in cells, so finer grid = finer strokes)
 const DU = 1.0, DV = 0.5;
 
 function simulate(rng, regime) {
@@ -74,46 +75,49 @@ function simulate(rng, regime) {
   const U = new Float64Array(n * n).fill(1);
   const V = new Float64Array(n * n).fill(0);
 
-  // Jaiye-style seeding: dense jittered grid of fat seeds, full-bleed —
-  // his pieces are fields of discrete worm segments edge-to-edge,
-  // not a connected maze and not framed
-  const gridN = 10;
-  const margin = 4;
-  const cell = (n - 2 * margin) / gridN;
-  for (let gy = 0; gy < gridN; gy++) {
-    for (let gx = 0; gx < gridN; gx++) {
-      if (rng() < 0.05) continue; // skip a few — breaks the lattice
-      const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
-      const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
-      const r = 2 + rng() * 1.5;
-      for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
-        for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
-          if (x < 0 || y < 0 || x >= n || y >= n) continue;
-          const dx = x - cx, dy = y - cy;
-          if (dx * dx + dy * dy <= r * r) {
-            const i = y * n + x;
-            U[i] = 0.5; V[i] = 1.0;
-          }
-        }
-      }
-    }
-  }
-  // a few wild seeds, fully off-grid (also kept off the edges)
-  const wild = 10 + ((rng() * 8) | 0);
-  for (let b = 0; b < wild; b++) {
-    const cx = 6 + rng() * (n - 12);
-    const cy = 6 + rng() * (n - 12);
-    const r = 2 + rng() * 1.5;
-    for (let y = Math.floor(cy - r - 1); y <= Math.ceil(cy + r + 1); y++) {
-      for (let x = Math.floor(cx - r - 1); x <= Math.ceil(cx + r + 1); x++) {
+  // Jaiye-style seeding: dense jittered grid of ELONGATED seed streaks,
+  // full-bleed — his pieces are fields of discrete worm segments
+  // edge-to-edge, not a connected maze, not framed, and NO round blobs.
+  // Every seed is a short capsule (never a disc) so nothing starts circular.
+  function stampDisc(px, py, r) {
+    for (let y = Math.floor(py - r - 1); y <= Math.ceil(py + r + 1); y++) {
+      for (let x = Math.floor(px - r - 1); x <= Math.ceil(px + r + 1); x++) {
         if (x < 0 || y < 0 || x >= n || y >= n) continue;
-        const dx = x - cx, dy = y - cy;
+        const dx = x - px, dy = y - py;
         if (dx * dx + dy * dy <= r * r) {
           const i = y * n + x;
           U[i] = 0.5; V[i] = 1.0;
         }
       }
     }
+  }
+  function stampStreak(cx, cy) {
+    const ang = rng() * Math.PI * 2;
+    // capsule sized to ignite but not nuke the field: too much seeded V-mass
+    // collapses the whole domain back to (U=1, V=0) — tuned 2026-10-08
+    const len = 4.0 + rng() * 2.0;   // streak half-length
+    const w = 2.0 + rng() * 1.0;     // streak thickness
+    const steps = 7;
+    for (let s = 0; s < steps; s++) {
+      const t = (s / (steps - 1) - 0.5) * 2 * len;
+      stampDisc(cx + Math.cos(ang) * t, cy + Math.sin(ang) * t, w);
+    }
+  }
+  const gridN = 12;
+  const margin = 6;
+  const cell = (n - 2 * margin) / gridN;
+  for (let gy = 0; gy < gridN; gy++) {
+    for (let gx = 0; gx < gridN; gx++) {
+      if (rng() < 0.05) continue; // skip a few — breaks the lattice
+      const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
+      const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
+      stampStreak(cx, cy);
+    }
+  }
+  // a few wild streaks, fully off-grid (also kept off the edges)
+  const wild = 14 + ((rng() * 6) | 0);
+  for (let b = 0; b < wild; b++) {
+    stampStreak(8 + rng() * (n - 16), 8 + rng() * (n - 16));
   }
   // faint background noise so no region stays perfectly sterile
   for (let i = 0; i < n * n; i++) {
@@ -162,7 +166,7 @@ function smoothstep(a, b, x) {
   return t * t * (3 - 2 * t);
 }
 
-/* ---------- Jaiye-style glow-tube rendering ---------- */
+/* ---------- Jaiye-style hand-inked rendering ---------- */
 
 function buildRamp(pal) {
   // 256-entry ramp: bg -> core -> mid -> rim
@@ -183,31 +187,57 @@ function buildRamp(pal) {
   return ramp;
 }
 
+// deterministic 2D value noise in [0,1] — the hand-drawn wobble & ink
+function vnoise(x, y, seed) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  function corner(ix, iy) {
+    let n = (Math.imul(ix, 374761393) + Math.imul(iy, 668265263) + Math.imul(seed | 0, 974634211)) | 0;
+    n = Math.imul(n ^ (n >>> 13), 1274126177);
+    return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+  }
+  const sx = xf * xf * (3 - 2 * xf), sy = yf * yf * (3 - 2 * yf);
+  const a = corner(xi, yi), b = corner(xi + 1, yi);
+  const c = corner(xi, yi + 1), d = corner(xi + 1, yi + 1);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
+
 function renderGlow(V, regime, pal, out, rng, seedInt) {
   const W = out.width, H = out.height, buf = out.data;
   const ramp = buildRamp(pal);
   const t0 = regime.t0;
   const phase = rng() * Math.PI * 2; // marbling phase, deterministic per piece
+  const nx = seedInt & 0xffff, ny = (seedInt >>> 16) & 0xffff;
 
   for (let y = 0; y < H; y++) {
     const vUv = y / H;
     for (let x = 0; x < W; x++) {
       const uUv = x / W;
-      const v = sampleV(V, uUv, vUv);
 
-      // Jaiye's tube: brightest ring right at the boundary, darker core inside
-      const edge = smoothstep(t0 - 0.06, t0 + 0.015, v);  // reaches 1 at the tube edge
-      const core = smoothstep(t0 + 0.015, t0 + 0.28, v);   // fills the interior
-      const halo = smoothstep(t0 - 0.28, t0 - 0.06, v) * 0.22; // faint spill outside
-      let bright = Math.min(edge * (1 - 0.62 * core) + halo, 1);
+      // hand-drawn wobble: nudge the sample point with low-frequency noise,
+      // so edges wander slightly and stroke width breathes like a pen line
+      const wx = (vnoise(x / W * 7 + nx, y / H * 7, nx ^ 0x1f3a) - 0.5) * 0.007;
+      const wy = (vnoise(x / W * 7, y / H * 7 + ny, ny ^ 0x7c21) - 0.5) * 0.007;
+      const v = sampleV(V, uUv + wx, vUv + wy);
 
-      // interior marbling — subtle striation inside the tubes
-      bright *= 0.96 + 0.04 * Math.sin(v * 36 + phase);
-      // hand grain — tiny deterministic pixel noise
+      // Jaiye's stroke: a mostly-solid inked line, brightest just inside the
+      // boundary, soft spill outside — not a neon tube
+      const edge = smoothstep(t0 - 0.055, t0 + 0.02, v);  // reaches 1 at the stroke edge
+      const core = smoothstep(t0 + 0.02, t0 + 0.30, v);   // fills the interior
+      const halo = smoothstep(t0 - 0.30, t0 - 0.055, v) * 0.16; // soft spill outside
+      let bright = Math.min(edge * (1 - 0.35 * core) + halo, 1);
+
+      // ink pooling: blotchy low-frequency density, like ink on paper
+      const ink = 0.80 + 0.40 * vnoise(x / W * 5 + nx, y / H * 5 + ny, (nx ^ ny) | 1);
+      bright = Math.min(Math.max(bright * ink, 0), 1);
+
+      // interior striation — faint pen texture inside the strokes
+      bright *= 0.965 + 0.035 * Math.sin(v * 30 + phase);
+      // paper grain — stronger inside the ink, faint on the background
       let n = (x * 374761393 + y * 668265263 + seedInt * 974634211) | 0;
       n = Math.imul(n ^ (n >>> 13), 1274126177);
-      const grain = (((n ^ (n >>> 16)) >>> 0) / 4294967296 - 0.5) * 0.035;
-      bright = Math.min(Math.max(bright + grain * (0.2 + bright), 0), 1);
+      const grain = (((n ^ (n >>> 16)) >>> 0) / 4294967296 - 0.5) * 0.055;
+      bright = Math.min(Math.max(bright + grain * (0.15 + bright), 0), 1);
 
       const ri = Math.min(255, (bright * 255) | 0) * 3;
       const i = (y * W + x) * 4;
@@ -219,7 +249,7 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
 /* ---------- top-level: hash -> artwork ---------- */
 
 function generate(hashStr, size) {
-  size = size || 1080;
+  size = size || 1536; // default render resolution (bumped 2026-10-08 per Joshua: higher res)
   const rng = hashToRng(hashStr);
   const regime = REGIMES[(rng() * REGIMES.length) | 0];
   // signature palette (his copper) gets ~45% weight
