@@ -61,13 +61,15 @@ const PALETTES = [
 // No spots regime: Joshua ruled out round puddle-circles (2026-10-08).
 // Every piece grows discrete worm segments only.
 const REGIMES = [
+  // k=0.065 grows discrete worm segments (k=0.063 merged them into a maze).
+  // Stable spots are removed by the morphological cleanup in simulate().
   { name: "Worm Field",  F: 0.058, k: 0.065, iters: 4500, t0: 0.25 },
-  { name: "Deep Drift",  F: 0.058, k: 0.065, iters: 6500, t0: 0.25 },
+  { name: "Deep Drift",  F: 0.062, k: 0.065, iters: 6500, t0: 0.25 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
 
-const SIM = 192; // bumped 2026-10-08 — thinner, denser worms (width is fixed in cells, so finer grid = finer strokes)
+const SIM = 256; // 2026-10-08 — smaller-scale worms (width is fixed in cells, so finer grid = finer strokes)
 const DU = 1.0, DV = 0.5;
 
 function simulate(rng, regime) {
@@ -75,10 +77,11 @@ function simulate(rng, regime) {
   const U = new Float64Array(n * n).fill(1);
   const V = new Float64Array(n * n).fill(0);
 
-  // Jaiye-style seeding: dense jittered grid of ELONGATED seed streaks,
-  // full-bleed — his pieces are fields of discrete worm segments
-  // edge-to-edge, not a connected maze, not framed, and NO round blobs.
-  // Every seed is a short capsule (never a disc) so nothing starts circular.
+  // Jaiye-style seeding: REPEATED MARK MOTIFS with local flow.
+  // His work is dense mark-making — a small vocabulary of marks repeated
+  // across the piece with hand variation, clumping into dense regions with
+  // breathing room. Never a uniform algorithmic grid, never a disc.
+  // Every mark is an elongated capsule (never a disc) — no circles.
   function stampDisc(px, py, r) {
     for (let y = Math.floor(py - r - 1); y <= Math.ceil(py + r + 1); y++) {
       for (let x = Math.floor(px - r - 1); x <= Math.ceil(px + r + 1); x++) {
@@ -91,33 +94,75 @@ function simulate(rng, regime) {
       }
     }
   }
-  function stampStreak(cx, cy) {
-    const ang = rng() * Math.PI * 2;
+  function stampStreak(cx, cy, ang, len, w) {
     // capsule sized to ignite but not nuke the field: too much seeded V-mass
-    // collapses the whole domain back to (U=1, V=0) — tuned 2026-10-08
-    const len = 4.0 + rng() * 2.0;   // streak half-length
-    const w = 2.0 + rng() * 1.0;     // streak thickness
+    // collapses the whole domain back to (U=1, V=0) — tuned 2026-10-08.
+    // Minimum 2.4:1 aspect — stubbier seeds grow into round dots (no circles).
+    if (len < w * 2.4) len = w * 2.4;
     const steps = 7;
     for (let s = 0; s < steps; s++) {
       const t = (s / (steps - 1) - 0.5) * 2 * len;
       stampDisc(cx + Math.cos(ang) * t, cy + Math.sin(ang) * t, w);
     }
   }
-  const gridN = 12;
-  const margin = 6;
-  const cell = (n - 2 * margin) / gridN;
-  for (let gy = 0; gy < gridN; gy++) {
-    for (let gx = 0; gx < gridN; gx++) {
-      if (rng() < 0.05) continue; // skip a few — breaks the lattice
-      const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
-      const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 1.0;
-      stampStreak(cx, cy);
+  // motif vocabulary — one motif per grid cell, rotated by the local flow
+  // angle so neighborhoods share a direction like hand-drawn hatching
+  function stampMotif(cx, cy, flowAng) {
+    const kind = rng();
+    const rot = flowAng + (rng() - 0.5) * 0.9; // hand variation around the flow
+    const sc = 0.8 + rng() * 0.5;
+    const L = (4.0 + rng() * 2.0) * sc, W = 2.0 + rng() * 1.0;
+    if (kind < 0.30) {
+      // burst: 5 streaks radiating from the center, pushed outward so
+      // their inner ends can't merge into a dot cluster
+      const m = 5;
+      const a0 = rng() * Math.PI * 2;
+      for (let k = 0; k < m; k++) {
+        const a = a0 + (k / m) * Math.PI * 2 + (rng() - 0.5) * 0.4;
+        stampStreak(cx + Math.cos(a) * L * 0.7, cy + Math.sin(a) * L * 0.7, a, L * 0.8, W);
+      }
+    } else if (kind < 0.55) {
+      // triad: 3 parallel hatch streaks
+      for (let k = -1; k <= 1; k++) {
+        const px = -Math.sin(rot), py = Math.cos(rot);
+        stampStreak(cx + px * k * 3.2 * sc + (rng() - 0.5), cy + py * k * 3.2 * sc + (rng() - 0.5),
+          rot + (rng() - 0.5) * 0.25, L, W);
+      }
+    } else if (kind < 0.80) {
+      // arc: 5 streaks along a gentle curve (never curled enough to close a ring)
+      const a0 = rot, R = L * 2.2;
+      for (let k = 0; k < 5; k++) {
+        const a = a0 + (k / 4 - 0.5) * 1.0;
+        stampStreak(cx + Math.cos(a) * R * 0.45, cy + Math.sin(a) * R * 0.45,
+          a + Math.PI / 2 + (rng() - 0.5) * 0.3, L * 0.7, W);
+      }
+    } else {
+      // scatter: 3 loose streaks, well spread — no dot clusters
+      for (let k = 0; k < 3; k++) {
+        stampStreak(cx + (rng() - 0.5) * L * 2.4, cy + (rng() - 0.5) * L * 2.4,
+          rot + (rng() - 0.5) * 1.2, L * (0.8 + rng() * 0.5), W);
+      }
     }
   }
-  // a few wild streaks, fully off-grid (also kept off the edges)
-  const wild = 14 + ((rng() * 6) | 0);
+  const gridN = 7;
+  const margin = 10;
+  const cell = (n - 2 * margin) / gridN;
+  const fseed = (rng() * 1000) | 0;
+  for (let gy = 0; gy < gridN; gy++) {
+    for (let gx = 0; gx < gridN; gx++) {
+      if (rng() < 0.08) continue; // skip a few — breaks the lattice
+      // organic clumping: dense patches and breathing room, not uniform
+      if (vnoise(gx * 0.85 + fseed, gy * 0.85, fseed ^ 0x51ab) < 0.35) continue;
+      const flowAng = vnoise(gx * 0.35, gy * 0.35 + fseed, fseed ^ 0x2c7e) * Math.PI * 2;
+      const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
+      const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
+      stampMotif(cx, cy, flowAng);
+    }
+  }
+  // wild motifs, fully off-grid (also kept off the edges)
+  const wild = 16 + ((rng() * 6) | 0);
   for (let b = 0; b < wild; b++) {
-    stampStreak(8 + rng() * (n - 16), 8 + rng() * (n - 16));
+    stampMotif(10 + rng() * (n - 20), 10 + rng() * (n - 20), rng() * Math.PI * 2);
   }
   // faint background noise so no region stays perfectly sterile
   for (let i = 0; i < n * n; i++) {
@@ -147,6 +192,44 @@ function simulate(rng, regime) {
     }
     U.set(U2); V.set(V2);
   }
+  // morphological cleanup: erase isolated dot components (no circles —
+  // Joshua's rule). Dots sit under ~70 cells; short worm segments run larger.
+  // Deterministic flood fill over V > regime.t0.
+  (function () {
+    const seen = new Uint8Array(n * n);
+    for (let i = 0; i < n * n; i++) {
+      if (V[i] <= regime.t0 || seen[i]) continue;
+      const comp = [];
+      const stack = [i];
+      seen[i] = 1;
+      while (stack.length) {
+        const c = stack.pop();
+        comp.push(c);
+        const x = c % n, y = (c / n) | 0;
+        const nb = [c - 1, c + 1, c - n, c + n];
+        for (let k = 0; k < 4; k++) {
+          const d = nb[k];
+          if (d < 0 || d >= n * n) continue;
+          const dx = Math.abs((d % n) - x), dy = Math.abs(((d / n) | 0) - y);
+          if (dx + dy !== 1) continue;
+          if (V[d] > regime.t0 && !seen[d]) { seen[d] = 1; stack.push(d); }
+        }
+      }
+      if (comp.length < 70) {
+        // dilate the erasure by 2 cells: the dot's faint V skirt
+        // (below t0 but above the render's edge threshold) would
+        // otherwise survive as a ghost ring
+        for (const c of comp) {
+          const x = c % n, y = (c / n) | 0;
+          for (let oy = -2; oy <= 2; oy++) for (let ox = -2; ox <= 2; ox++) {
+            const nx2 = x + ox, ny2 = y + oy;
+            if (nx2 < 0 || ny2 < 0 || nx2 >= n || ny2 >= n) continue;
+            V[ny2 * n + nx2] = 0;
+          }
+        }
+      }
+    }
+  })();
   return { V, F, K, iters };
 }
 
@@ -216,8 +299,8 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
 
       // hand-drawn wobble: nudge the sample point with low-frequency noise,
       // so edges wander slightly and stroke width breathes like a pen line
-      const wx = (vnoise(x / W * 7 + nx, y / H * 7, nx ^ 0x1f3a) - 0.5) * 0.007;
-      const wy = (vnoise(x / W * 7, y / H * 7 + ny, ny ^ 0x7c21) - 0.5) * 0.007;
+      const wx = (vnoise(x / W * 10 + nx, y / H * 10, nx ^ 0x1f3a) - 0.5) * 0.007;
+      const wy = (vnoise(x / W * 10, y / H * 10 + ny, ny ^ 0x7c21) - 0.5) * 0.007;
       const v = sampleV(V, uUv + wx, vUv + wy);
 
       // Jaiye's stroke: a mostly-solid inked line, brightest just inside the
@@ -228,7 +311,7 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       let bright = Math.min(edge * (1 - 0.35 * core) + halo, 1);
 
       // ink pooling: blotchy low-frequency density, like ink on paper
-      const ink = 0.80 + 0.40 * vnoise(x / W * 5 + nx, y / H * 5 + ny, (nx ^ ny) | 1);
+      const ink = 0.80 + 0.40 * vnoise(x / W * 8 + nx, y / H * 8 + ny, (nx ^ ny) | 1);
       bright = Math.min(Math.max(bright * ink, 0), 1);
 
       // interior striation — faint pen texture inside the strokes
@@ -249,7 +332,7 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
 /* ---------- top-level: hash -> artwork ---------- */
 
 function generate(hashStr, size) {
-  size = size || 1536; // default render resolution (bumped 2026-10-08 per Joshua: higher res)
+  size = size || 1080;
   const rng = hashToRng(hashStr);
   const regime = REGIMES[(rng() * REGIMES.length) | 0];
   // signature palette (his copper) gets ~45% weight

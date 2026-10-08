@@ -2,7 +2,7 @@
 (function () {
   "use strict";
 
-  var SIZE = 1536;
+  var SIZE = 1080;
   var canvas = document.getElementById("art");
   var ctx = canvas.getContext("2d");
   var img = ctx.createImageData(SIZE, SIZE);

@@ -1,5 +1,5 @@
 /* dawn-diffusion batch renderer — node make_batch.js <count> <out-dir> [seed-word]
- * Writes 1536x1536 PNGs (via BMP + ffmpeg) for a run of fresh hashes. */
+ * Writes 1080x1080 PNGs (via BMP + ffmpeg) for a run of fresh hashes. */
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -35,7 +35,7 @@ const rng = core.hashToRng(seedWord);
 for (let i = 0; i < count; i++) {
   const hash = core.randomHex(rng, 64);
   const t0 = Date.now();
-  const out = core.generate(hash, 1536);
+  const out = core.generate(hash, 1080);
   const base = path.join(outDir, "dawn-diffusion-" + hash.slice(0, 12));
   const bmpPath = base + ".bmp";
   fs.writeFileSync(bmpPath, toBmp(out));
