@@ -63,8 +63,8 @@ const PALETTES = [
 const REGIMES = [
   // k=0.065 grows discrete worm segments (k=0.063 merged them into a maze).
   // Stable spots are removed by the morphological cleanup in simulate().
-  { name: "Worm Field",  F: 0.058, k: 0.065, iters: 4500, t0: 0.25 },
-  { name: "Deep Drift",  F: 0.062, k: 0.065, iters: 6500, t0: 0.25 },
+  { name: "Worm Field",  F: 0.058, k: 0.065, iters: 6000, t0: 0.25 },
+  { name: "Deep Drift",  F: 0.060, k: 0.065, iters: 6500, t0: 0.25 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
@@ -109,7 +109,7 @@ function simulate(rng, regime) {
   // angle so neighborhoods share a direction like hand-drawn hatching
   function stampMotif(cx, cy, flowAng) {
     const kind = rng();
-    const rot = flowAng + (rng() - 0.5) * 0.9; // hand variation around the flow
+    const rot = flowAng + (rng() - 0.5) * 1.4; // loose hand variation around the flow
     const sc = 0.8 + rng() * 0.5;
     const L = (4.0 + rng() * 2.0) * sc, W = 2.0 + rng() * 1.0;
     if (kind < 0.30) {
@@ -144,7 +144,7 @@ function simulate(rng, regime) {
       }
     }
   }
-  const gridN = 7;
+  const gridN = 9;
   const margin = 10;
   const cell = (n - 2 * margin) / gridN;
   const fseed = (rng() * 1000) | 0;
@@ -152,15 +152,15 @@ function simulate(rng, regime) {
     for (let gx = 0; gx < gridN; gx++) {
       if (rng() < 0.08) continue; // skip a few — breaks the lattice
       // organic clumping: dense patches and breathing room, not uniform
-      if (vnoise(gx * 0.85 + fseed, gy * 0.85, fseed ^ 0x51ab) < 0.35) continue;
-      const flowAng = vnoise(gx * 0.35, gy * 0.35 + fseed, fseed ^ 0x2c7e) * Math.PI * 2;
+      if (vnoise(gx * 0.85 + fseed, gy * 0.85, fseed ^ 0x51ab) < 0.22) continue;
+      const flowAng = vnoise(gx * 0.55, gy * 0.55 + fseed, fseed ^ 0x2c7e) * Math.PI * 2;
       const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
       const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
       stampMotif(cx, cy, flowAng);
     }
   }
   // wild motifs, fully off-grid (also kept off the edges)
-  const wild = 16 + ((rng() * 6) | 0);
+  const wild = 20 + ((rng() * 6) | 0);
   for (let b = 0; b < wild; b++) {
     stampMotif(10 + rng() * (n - 20), 10 + rng() * (n - 20), rng() * Math.PI * 2);
   }
@@ -192,8 +192,9 @@ function simulate(rng, regime) {
     }
     U.set(U2); V.set(V2);
   }
-  // morphological cleanup: erase isolated dot components (no circles —
-  // Joshua's rule). Dots sit under ~70 cells; short worm segments run larger.
+  // morphological cleanup: erase round dot components (no circles —
+  // Joshua's rule). Kills components that are BOTH small (<150 cells) AND
+  // round (bbox aspect < 1.8); small-but-elongated worm segments are kept.
   // Deterministic flood fill over V > regime.t0.
   (function () {
     const seen = new Uint8Array(n * n);
@@ -202,10 +203,13 @@ function simulate(rng, regime) {
       const comp = [];
       const stack = [i];
       seen[i] = 1;
+      let mnx = n, mxx = -1, mny = n, mxy = -1;
       while (stack.length) {
         const c = stack.pop();
         comp.push(c);
         const x = c % n, y = (c / n) | 0;
+        if (x < mnx) mnx = x; if (x > mxx) mxx = x;
+        if (y < mny) mny = y; if (y > mxy) mxy = y;
         const nb = [c - 1, c + 1, c - n, c + n];
         for (let k = 0; k < 4; k++) {
           const d = nb[k];
@@ -215,7 +219,9 @@ function simulate(rng, regime) {
           if (V[d] > regime.t0 && !seen[d]) { seen[d] = 1; stack.push(d); }
         }
       }
-      if (comp.length < 70) {
+      const w = mxx - mnx + 1, h = mxy - mny + 1;
+      const aspect = Math.max(w, h) / Math.max(1, Math.min(w, h));
+      if (comp.length < 150 && aspect < 1.8) {
         // dilate the erasure by 2 cells: the dot's faint V skirt
         // (below t0 but above the render's edge threshold) would
         // otherwise survive as a ghost ring
