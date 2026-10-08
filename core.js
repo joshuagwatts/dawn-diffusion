@@ -49,11 +49,10 @@ function randomHex(rng, len) {
 /* ---------- palettes (signature copper weighted first) ---------- */
 
 const PALETTES = [
-  { name: "Copper Ember", sig: true, bg: [0, 0, 0],      core: [58, 18, 6],   mid: [196, 106, 40],  rim: [255, 233, 200] },
-  { name: "Bone Glow",    sig: false, bg: [0, 0, 0],     core: [40, 36, 30],  mid: [180, 168, 148], rim: [255, 250, 240] },
-  { name: "Indigo Vein",  sig: false, bg: [2, 3, 12],    core: [18, 20, 70],  mid: [70, 110, 230],  rim: [215, 232, 255] },
-  { name: "Moss Light",   sig: false, bg: [2, 6, 2],     core: [24, 52, 22],  mid: [120, 180, 90],  rim: [240, 255, 220] },
-  { name: "Blood Moon",   sig: false, bg: [6, 0, 0],     core: [70, 8, 8],     mid: [200, 60, 40],   rim: [255, 214, 190] },
+  // Jaiye's work is black and white — spray paint / acrylic on black canvas.
+  { name: "Turing Fade",  sig: true,  bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
+  { name: "Pattern Tare", sig: false, bg: [0, 0, 0], core: [10, 10, 10],  mid: [170, 170, 170], rim: [255, 255, 255], fade: "none" },
+  { name: "Bone Ink",     sig: false, bg: [0, 0, 0], core: [30, 28, 24],  mid: [160, 152, 138], rim: [245, 238, 225], fade: "vertical" },
 ];
 
 /* ---------- Gray-Scott regimes (Jaiye-tuned: tubes + dots) ---------- */
@@ -63,8 +62,8 @@ const PALETTES = [
 const REGIMES = [
   // k=0.065 grows discrete worm segments (k=0.063 merged them into a maze).
   // Stable spots are removed by the morphological cleanup in simulate().
-  { name: "Worm Field",  F: 0.058, k: 0.065, iters: 6000, t0: 0.25 },
-  { name: "Deep Drift",  F: 0.060, k: 0.065, iters: 6500, t0: 0.25 },
+  { name: "Worm Field",  F: 0.058, k: 0.065, iters: 7000, t0: 0.25 },
+  { name: "Deep Drift",  F: 0.060, k: 0.065, iters: 7500, t0: 0.25 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
@@ -144,23 +143,24 @@ function simulate(rng, regime) {
       }
     }
   }
-  const gridN = 9;
-  const margin = 10;
+  // Motif clusters on a dense grid — each motif has the mass to survive
+  // and grow; packed tight so the worms touch like Jaiye's hand.
+  const gridN = 12;
+  const margin = 3;
   const cell = (n - 2 * margin) / gridN;
   const fseed = (rng() * 1000) | 0;
   for (let gy = 0; gy < gridN; gy++) {
     for (let gx = 0; gx < gridN; gx++) {
-      if (rng() < 0.08) continue; // skip a few — breaks the lattice
-      // organic clumping: dense patches and breathing room, not uniform
-      if (vnoise(gx * 0.85 + fseed, gy * 0.85, fseed ^ 0x51ab) < 0.22) continue;
+      if (rng() < 0.06) continue;
+      if (vnoise(gx * 0.85 + fseed, gy * 0.85, fseed ^ 0x51ab) < 0.08) continue;
       const flowAng = vnoise(gx * 0.55, gy * 0.55 + fseed, fseed ^ 0x2c7e) * Math.PI * 2;
       const cx = margin + gx * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
       const cy = margin + gy * cell + cell / 2 + (rng() - 0.5) * cell * 0.9;
       stampMotif(cx, cy, flowAng);
     }
   }
-  // wild motifs, fully off-grid (also kept off the edges)
-  const wild = 20 + ((rng() * 6) | 0);
+  // wild motifs, fully off-grid
+  const wild = 24 + ((rng() * 8) | 0);
   for (let b = 0; b < wild; b++) {
     stampMotif(10 + rng() * (n - 20), 10 + rng() * (n - 20), rng() * Math.PI * 2);
   }
@@ -292,41 +292,53 @@ function vnoise(x, y, seed) {
 }
 
 function renderGlow(V, regime, pal, out, rng, seedInt) {
+  // Jaiye's hand: bold white brush strokes on black canvas, spray paint /
+  // acrylic. Dry-brush drag, varying opacity, and his signature vertical
+  // fade (bright at the top dissolving downward — "Turing Fade").
   const W = out.width, H = out.height, buf = out.data;
   const ramp = buildRamp(pal);
   const t0 = regime.t0;
-  const phase = rng() * Math.PI * 2; // marbling phase, deterministic per piece
+  const phase = rng() * Math.PI * 2;
   const nx = seedInt & 0xffff, ny = (seedInt >>> 16) & 0xffff;
+  const doFade = pal.fade === "vertical";
+  const fadeDir = rng() < 0.5 ? 1 : -1; // fade runs top-down or bottom-up
+  const fadeStart = 0.15 + rng() * 0.25, fadeEnd = 0.75 + rng() * 0.25;
 
   for (let y = 0; y < H; y++) {
     const vUv = y / H;
     for (let x = 0; x < W; x++) {
       const uUv = x / W;
 
-      // hand-drawn wobble: nudge the sample point with low-frequency noise,
-      // so edges wander slightly and stroke width breathes like a pen line
-      const wx = (vnoise(x / W * 10 + nx, y / H * 10, nx ^ 0x1f3a) - 0.5) * 0.007;
-      const wy = (vnoise(x / W * 10, y / H * 10 + ny, ny ^ 0x7c21) - 0.5) * 0.007;
+      // hand-drawn wobble — edges wander like a loaded brush
+      const wx = (vnoise(x / W * 10 + nx, y / H * 10, nx ^ 0x1f3a) - 0.5) * 0.009;
+      const wy = (vnoise(x / W * 10, y / H * 10 + ny, ny ^ 0x7c21) - 0.5) * 0.009;
       const v = sampleV(V, uUv + wx, vUv + wy);
 
-      // Jaiye's stroke: a mostly-solid inked line, brightest just inside the
-      // boundary, soft spill outside — not a neon tube
-      const edge = smoothstep(t0 - 0.055, t0 + 0.02, v);  // reaches 1 at the stroke edge
-      const core = smoothstep(t0 + 0.02, t0 + 0.30, v);   // fills the interior
-      const halo = smoothstep(t0 - 0.30, t0 - 0.055, v) * 0.16; // soft spill outside
-      let bright = Math.min(edge * (1 - 0.35 * core) + halo, 1);
+      // bold stroke: hard edge, solid fill — a brush mark, not a glow
+      const edge = smoothstep(t0 - 0.03, t0 + 0.03, v);
+      const core = smoothstep(t0 + 0.03, t0 + 0.25, v);
+      let bright = edge * (1 - 0.25 * core);
 
-      // ink pooling: blotchy low-frequency density, like ink on paper
-      const ink = 0.80 + 0.40 * vnoise(x / W * 8 + nx, y / H * 8 + ny, (nx ^ ny) | 1);
-      bright = Math.min(Math.max(bright * ink, 0), 1);
+      // dry-brush drag: streaky opacity along the stroke, like bristles skipping
+      const drag = 0.72 + 0.28 * vnoise(x / W * 30 + nx, y / H * 6 + ny, (nx ^ 0x55aa));
+      // blotchy paint density
+      const ink = 0.78 + 0.44 * vnoise(x / W * 7 + nx, y / H * 7 + ny, (nx ^ ny) | 1);
+      bright = Math.min(Math.max(bright * drag * ink, 0), 1);
 
-      // interior striation — faint pen texture inside the strokes
-      bright *= 0.965 + 0.035 * Math.sin(v * 30 + phase);
-      // paper grain — stronger inside the ink, faint on the background
+      // bristle striation inside the strokes
+      bright *= 0.94 + 0.06 * Math.sin(v * 26 + phase + 3 * vnoise(x / W * 20, y / H * 20, 7));
+      // canvas grain
       let n = (x * 374761393 + y * 668265263 + seedInt * 974634211) | 0;
       n = Math.imul(n ^ (n >>> 13), 1274126177);
-      const grain = (((n ^ (n >>> 16)) >>> 0) / 4294967296 - 0.5) * 0.055;
-      bright = Math.min(Math.max(bright + grain * (0.15 + bright), 0), 1);
+      const grain = (((n ^ (n >>> 16)) >>> 0) / 4294967296 - 0.5) * 0.07;
+      bright = Math.min(Math.max(bright + grain * (0.1 + bright), 0), 1);
+
+      // Turing Fade: brightness dissolves along the vertical
+      if (doFade && bright > 0.01) {
+        const p = fadeDir > 0 ? vUv : 1 - vUv;
+        const f = 1 - smoothstep(fadeStart, fadeEnd, p) * 0.80;
+        bright *= f;
+      }
 
       const ri = Math.min(255, (bright * 255) | 0) * 3;
       const i = (y * W + x) * 4;
@@ -347,7 +359,22 @@ function generate(hashStr, size) {
   if (rng() < 0.45) pal = sigs[(rng() * sigs.length) | 0];
   else pal = rest[(rng() * rest.length) | 0];
 
-  const sim = simulate(rng, regime);
+  // LAYERED PAINT: run the field 3 times with independent seed streams
+  // (derived from the same hash — fully deterministic) and composite by
+  // max. Each layer is ~20% coverage; layered, they reach the dense,
+  // overlapping, stroke-upon-stroke packing of Jaiye's hand. This bypasses
+  // the single-field seed collapse limit.
+  const layers = 3;
+  let V = null;
+  let iters = 0;
+  for (let L = 0; L < layers; L++) {
+    const lrng = hashToRng(hashStr + ":layer" + L);
+    const sim = simulate(lrng, regime);
+    iters = sim.iters;
+    if (!V) V = sim.V;
+    else for (let i = 0; i < V.length; i++) if (sim.V[i] > V[i]) V[i] = sim.V[i];
+  }
+  const sim = { V, iters };
 
   const out = {
     width: size, height: size,
