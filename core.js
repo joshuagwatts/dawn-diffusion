@@ -49,8 +49,9 @@ function randomHex(rng, len) {
 /* ---------- palettes (signature copper weighted first) ---------- */
 
 const PALETTES = [
-  // Jaiye's work is black and white — spray paint / acrylic on black canvas.
-  { name: "Turing Fade",  sig: true,  bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
+  // Jaiye's actual hand: copper glow on black (reference.jpg).
+  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [40, 18, 8],   mid: [180, 95, 40],  rim: [255, 200, 140], fade: "vertical" },
+  { name: "Turing Fade",  sig: false, bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
   { name: "Pattern Tare", sig: false, bg: [0, 0, 0], core: [10, 10, 10],  mid: [170, 170, 170], rim: [255, 255, 255], fade: "none" },
   { name: "Bone Ink",     sig: false, bg: [0, 0, 0], core: [30, 28, 24],  mid: [160, 152, 138], rim: [245, 238, 225], fade: "vertical" },
 ];
@@ -76,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 12, GAP = 2;
+  const LW = 8, GAP = 3;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -114,7 +115,7 @@ function growMaze(rng) {
   }
 
   let worms = 0, attempts = 0;
-  const target = 0.72 * n * n;
+  const target = 0.52 * n * n;
   let covered = 0;
   while (covered < target && attempts < 12000) {
     attempts++;
@@ -122,7 +123,7 @@ function growMaze(rng) {
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
     let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = 12 + ((rng() * 14) | 0);
+    const maxSteps = 25 + ((rng() * 25) | 0);
     for (let st = 0; st < maxSteps; st++) {
       // Space-seeking walk: picks the most open direction, weaving into gaps.
       // This packs the maze dense and interlocked.
@@ -275,10 +276,11 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // wider band of the V field than the cleanup threshold, thickening
       // each worm while the field's natural spacing keeps them separated.
       let bright;
-      // Clean 3D tube: the V field carries a subtle center-bright
-      // profile. Map it directly — bright center, softly falling to
-      // the edge. No blotchiness, no multiply.
-      bright = smoothstep(0.35, 0.5, v) * (0.82 + 0.18 * v);
+      // Glow: soft bright core fading to the edge, like his copper
+      // lines. The blurred V field gives the falloff; we lift it with
+      // a gentle gamma for that luminous quality.
+      const g = smoothstep(0.15, 0.9, v);
+      bright = Math.pow(g, 0.75);
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
       // (maze: whisper of texture only — his maze lines are clean and luminous)
