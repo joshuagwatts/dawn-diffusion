@@ -106,9 +106,7 @@ function growMaze(rng) {
         if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
         const idx = ny * n + nx;
         occ[idx] = 1;
-        // gentle tube profile: bright center, softly falling to edge
-        const tube = 1 - 0.18 * (dd / r) * (dd / r);
-        if (tube > V[idx]) V[idx] = tube;
+        V[idx] = 1.0;
       }
     }
   }
@@ -275,20 +273,15 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // wider band of the V field than the cleanup threshold, thickening
       // each worm while the field's natural spacing keeps them separated.
       let bright;
-      if (regime.mode === "maze") {
-        // Maze: clean luminous strokes. Crisp edge, subtle tube highlight
-        // from the V profile, whisper of hand texture — no muddy multiply.
-        bright = smoothstep(t0 - 0.05, t0 + 0.03, v) * (0.92 + 0.08 * v);
-      } else {
-        const edge = smoothstep(t0 - 0.11, t0 - 0.03, v);
-        const core = smoothstep(t0 - 0.03, t0 + 0.22, v);
-        bright = edge * (1 - 0.25 * core);
-      }
+      // Flat, clean, bright strokes. The V-field blur gives a 1-2px
+      // anti-aliased edge; the tight threshold keeps the interior
+      // uniformly luminous — no gradient, no multiply.
+      bright = smoothstep(0.45, 0.55, v);
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
       // (maze: whisper of texture only — his maze lines are clean and luminous)
-      const dragAmp = regime.mode === "maze" ? 0.06 : 0.28;
-      const inkAmp = regime.mode === "maze" ? 0.08 : 0.44;
+      const dragAmp = 0.0;
+      const inkAmp = 0.0;
       const drag = (1 - dragAmp) + dragAmp * vnoise(x / W * 30 + nx, y / H * 6 + ny, (nx ^ 0x55aa));
       const ink = (1 - inkAmp) + inkAmp * vnoise(x / W * 7 + nx, y / H * 7 + ny, (nx ^ ny) | 1);
       bright = Math.min(Math.max(bright * drag * ink, 0), 1);
