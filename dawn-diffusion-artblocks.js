@@ -50,7 +50,7 @@ function randomHex(rng, len) {
 
 const PALETTES = [
   // Jaiye's actual hand: copper glow on black (reference.jpg).
-  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [60, 25, 10],  mid: [210, 110, 45], rim: [255, 220, 170], fade: "vertical" },
+  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [70, 30, 12],  mid: [220, 120, 50], rim: [255, 235, 200], fade: "vertical" },
   { name: "Turing Fade",  sig: false, bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
   { name: "Pattern Tare", sig: false, bg: [0, 0, 0], core: [10, 10, 10],  mid: [170, 170, 170], rim: [255, 255, 255], fade: "none" },
   { name: "Bone Ink",     sig: false, bg: [0, 0, 0], core: [30, 28, 24],  mid: [160, 152, 138], rim: [245, 238, 225], fade: "vertical" },
@@ -77,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 6, GAP = 3;
+  const LW = 5, GAP = 2;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -115,7 +115,7 @@ function growMaze(rng) {
   }
 
   let worms = 0, attempts = 0;
-  const target = 0.52 * n * n;
+  const target = 0.58 * n * n;
   let covered = 0;
   while (covered < target && attempts < 12000) {
     attempts++;
@@ -123,7 +123,7 @@ function growMaze(rng) {
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
     let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = 35 + ((rng() * 35) | 0);
+    const maxSteps = 15 + ((rng() * 55) | 0);
     for (let st = 0; st < maxSteps; st++) {
       // Space-seeking walk: picks the most open direction, weaving into gaps.
       // This packs the maze dense and interlocked.
@@ -279,8 +279,8 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // Glow: soft bright core fading to the edge, like his copper
       // lines. The blurred V field gives the falloff; we lift it with
       // a gentle gamma for that luminous quality.
-      const g = smoothstep(0.15, 0.9, v);
-      bright = Math.pow(g, 0.75);
+      const g = smoothstep(0.12, 0.85, v);
+      bright = Math.pow(g, 0.6);
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
       // (maze: whisper of texture only — his maze lines are clean and luminous)
