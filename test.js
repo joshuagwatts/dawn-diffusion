@@ -36,9 +36,9 @@ check("features complete",
   f && f.Palette && f.Regime && f.Iterations,
   JSON.stringify(f));
 
-// 6. every regime develops a real field (coverage sanity, catches param drift)
+// 6. the maze develops a real field (coverage sanity, catches param drift)
 core.REGIMES.forEach((regime) => {
-  const sim = core.simulate(core.hashToRng("coveragetest"), regime);
+  const sim = core.growMaze(core.hashToRng("coveragetest"));
   let hi = 0;
   for (let i = 0; i < sim.V.length; i++) if (sim.V[i] > regime.t0) hi++;
   const cov = (hi / sim.V.length) * 100;

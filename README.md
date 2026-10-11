@@ -9,15 +9,12 @@ Live demo: https://joshuagwatts.github.io/dawn-diffusion/
 
 ## What it does
 
-Three generative regimes, all obeying his rules — lines never touch, never
+One generative regime, obeying his rules — lines never touch, never
 overlap, no circles, full-bleed, black and white only:
 
-- **Maze** (signature, ~65%) — a direct worm-grower plants thick labyrinth
-  lines one by one, each seeking empty space and keeping its distance.
-  Concentric ring portals emerge naturally. ~55% ink coverage, dots in the gaps.
-- **Worm Field** — Gray-Scott reaction-diffusion grows discrete worm segments
-  with rounded caps and dry-brush texture.
-- **Deep Drift** — longer, drifting Gray-Scott worms.
+**Maze** — a direct worm-grower plants thick labyrinth lines one by one,
+each seeking empty space and keeping its distance. Concentric ring portals
+emerge naturally. ~55% ink coverage, dots in the gaps, anti-aliased edges.
 
 Palettes: **Turing Fade** (his signature — bright top dissolving down),
 **Pattern Tare**, **Bone Ink**. Final polish pass: gentle blur + unsharp mask

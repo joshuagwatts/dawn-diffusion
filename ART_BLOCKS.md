@@ -24,7 +24,7 @@ How this repo maps to an Art Blocks drop, and what's left for Jaiye.
       with the application; `?hash=` links directly to a piece, accepts `0x`).
 - [x] **Style fidelity** — tuned against Jaiye's actual work: thick white
       strokes on black, lines never touch, no circles, full-bleed, his
-      vertical fade. Maze regime is the signature (~65% of outputs).
+      vertical fade, anti-aliased edges.
 
 ## Jaiye's steps
 
@@ -47,8 +47,8 @@ How this repo maps to an Art Blocks drop, and what's left for Jaiye.
 
 ## Notes for the application
 
-- The three regimes (Maze / Worm Field / Deep Drift) give the collection its
-  range; Maze leads at ~65% because it's closest to his hand.
+- Single Maze regime — every output is the dense labyrinth hand, no
+  simulation-looking variation.
 - Palettes are B&W only: Turing Fade (his signature fade), Pattern Tare,
   Bone Ink.
 - Edition size is his call — the script holds up across hundreds of hashes
