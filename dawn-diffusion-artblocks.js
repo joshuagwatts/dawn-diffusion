@@ -50,7 +50,7 @@ function randomHex(rng, len) {
 
 const PALETTES = [
   // Jaiye's actual hand: copper glow on black (reference.jpg).
-  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [40, 18, 8],   mid: [180, 95, 40],  rim: [255, 200, 140], fade: "vertical" },
+  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [60, 25, 10],  mid: [210, 110, 45], rim: [255, 220, 170], fade: "vertical" },
   { name: "Turing Fade",  sig: false, bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
   { name: "Pattern Tare", sig: false, bg: [0, 0, 0], core: [10, 10, 10],  mid: [170, 170, 170], rim: [255, 255, 255], fade: "none" },
   { name: "Bone Ink",     sig: false, bg: [0, 0, 0], core: [30, 28, 24],  mid: [160, 152, 138], rim: [245, 238, 225], fade: "vertical" },
@@ -77,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 8, GAP = 3;
+  const LW = 6, GAP = 3;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -123,7 +123,7 @@ function growMaze(rng) {
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
     let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = 25 + ((rng() * 25) | 0);
+    const maxSteps = 35 + ((rng() * 35) | 0);
     for (let st = 0; st < maxSteps; st++) {
       // Space-seeking walk: picks the most open direction, weaving into gaps.
       // This packs the maze dense and interlocked.
@@ -163,10 +163,10 @@ function growMaze(rng) {
     }
   }
   // small dots in the leftover gaps (his maze texture has them)
-  for (let b = 0; b < 40; b++) {
+  for (let b = 0; b < 70; b++) {
     const x = 12 + rng() * (n - 24), y = 12 + rng() * (n - 24);
     if (clearance(x, y) < LW / 2 + GAP + 1) continue;
-    const r = 3 + rng() * 2;
+    const r = 2 + rng() * 1.5;
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
       if (dx*dx + dy*dy > r*r) continue;
       const nx = Math.round(x+dx), ny = Math.round(y+dy);
