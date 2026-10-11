@@ -110,7 +110,9 @@ function growMaze(rng) {
         if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
         const idx = ny * n + nx;
         occ[idx] = 1;
-        V[idx] = 1.0;
+        // gentle tube profile: bright center, softly falling to edge
+        const tube = 1 - 0.18 * (dd / r) * (dd / r);
+        if (tube > V[idx]) V[idx] = tube;
       }
     }
   }
@@ -414,9 +416,9 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // each worm while the field's natural spacing keeps them separated.
       let bright;
       if (regime.mode === "maze") {
-        // Maze lines are binary in V: render them bold and bright.
-        // Tube shading comes from the drag/ink texture below.
-        bright = smoothstep(t0 - 0.04, t0 + 0.04, v);
+        // Maze: clean luminous strokes. Crisp edge, subtle tube highlight
+        // from the V profile, whisper of hand texture — no muddy multiply.
+        bright = smoothstep(t0 - 0.05, t0 + 0.03, v) * (0.92 + 0.08 * v);
       } else {
         const edge = smoothstep(t0 - 0.11, t0 - 0.03, v);
         const core = smoothstep(t0 - 0.03, t0 + 0.22, v);
@@ -424,9 +426,11 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       }
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
-      const drag = 0.72 + 0.28 * vnoise(x / W * 30 + nx, y / H * 6 + ny, (nx ^ 0x55aa));
-      // blotchy paint density
-      const ink = 0.78 + 0.44 * vnoise(x / W * 7 + nx, y / H * 7 + ny, (nx ^ ny) | 1);
+      // (maze: whisper of texture only — his maze lines are clean and luminous)
+      const dragAmp = regime.mode === "maze" ? 0.06 : 0.28;
+      const inkAmp = regime.mode === "maze" ? 0.08 : 0.44;
+      const drag = (1 - dragAmp) + dragAmp * vnoise(x / W * 30 + nx, y / H * 6 + ny, (nx ^ 0x55aa));
+      const ink = (1 - inkAmp) + inkAmp * vnoise(x / W * 7 + nx, y / H * 7 + ny, (nx ^ ny) | 1);
       bright = Math.min(Math.max(bright * drag * ink, 0), 1);
 
       // bristle striation inside the strokes
@@ -456,7 +460,9 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
 function generate(hashStr, size) {
   size = size || 1080;
   const rng = hashToRng(hashStr);
-  const regime = REGIMES[(rng() * REGIMES.length) | 0];
+  const mazeRegime = REGIMES.find(r => r.mode === "maze");
+  const gsRegimes = REGIMES.filter(r => r.mode !== "maze");
+  const regime = rng() < 0.65 ? mazeRegime : gsRegimes[(rng() * gsRegimes.length) | 0];
   // signature palette (his copper) gets ~45% weight
   let pal;
   const sigs = PALETTES.filter(p => p.sig), rest = PALETTES.filter(p => !p.sig);
