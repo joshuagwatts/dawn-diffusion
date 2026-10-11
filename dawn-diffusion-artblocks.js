@@ -120,27 +120,27 @@ function growMaze(rng) {
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
     let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = 30 + ((rng() * 30) | 0);
+    const maxSteps = 45 + ((rng() * 35) | 0);
     for (let st = 0; st < maxSteps; st++) {
       // Space-seeking walk: picks the most open direction, weaving into gaps.
       // This packs the maze dense and interlocked.
       let bestA = ang, bestC = -1;
       for (let k = -2; k <= 2; k++) {
         const a = ang + k * 0.5;
-        const nx = px + Math.cos(a) * 8, ny = py + Math.sin(a) * 8;
+        const nx = px + Math.cos(a) * 12, ny = py + Math.sin(a) * 12;
         if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
         const c = clearance(nx, ny);
         if (c > bestC) { bestC = c; bestA = a; }
       }
       if (bestC < LW / 2 + GAP) break;
       ang = bestA;
-      px += Math.cos(ang) * 8; py += Math.sin(ang) * 8;
+      px += Math.cos(ang) * 12; py += Math.sin(ang) * 12;
       path.push([px, py]);
     }
     if (path.length < 4) continue;
     // Heavy Chaikin smoothing: 4 iterations melt the jitters into flowing
     // curves while keeping the dense interlocked maze layout
-    for (let smooth = 0; smooth < 4; smooth++) {
+    for (let smooth = 0; smooth < 6; smooth++) {
       const sp = [path[0]];
       for (let i = 0; i < path.length - 1; i++) {
         const p0 = path[i], p1 = path[i + 1];
