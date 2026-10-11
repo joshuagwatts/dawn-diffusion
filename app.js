@@ -56,7 +56,7 @@
   }
 
   function currentHash() {
-    var h = hashInput.value.trim().toLowerCase();
+    var h = hashInput.value.trim().toLowerCase().replace(/^0x/, "");
     if (!/^[0-9a-f]{64}$/.test(h)) {
       h = DawnDiffusion.randomHex(DawnDiffusion.hashToRng("dawn-diffusion-" + Date.now()), 64);
       hashInput.value = h;
@@ -82,7 +82,7 @@
   // expose core under a friendly namespace for core.js (loaded via <script>)
   window.DawnDiffusion = window.DawnDiffusion || {};
 
-  var h = qs("hash");
+  var h = (qs("hash") || "").toLowerCase().replace(/^0x/, "");
   if (h && /^[0-9a-f]{64}$/i.test(h)) {
     hashInput.value = h.toLowerCase();
   } else {
