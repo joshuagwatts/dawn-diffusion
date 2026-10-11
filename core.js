@@ -50,7 +50,7 @@ function randomHex(rng, len) {
 
 const PALETTES = [
   // Jaiye's actual hand: copper glow on black (reference.jpg).
-  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [70, 30, 12],  mid: [220, 120, 50], rim: [255, 235, 200], fade: "vertical" },
+  { name: "Copper Ember", sig: true,  bg: [0, 0, 0], core: [90, 40, 15],  mid: [230, 130, 55], rim: [255, 225, 180], fade: "none" },
   { name: "Turing Fade",  sig: false, bg: [0, 0, 0], core: [18, 18, 18],  mid: [150, 150, 150], rim: [255, 255, 255], fade: "vertical" },
   { name: "Pattern Tare", sig: false, bg: [0, 0, 0], core: [10, 10, 10],  mid: [170, 170, 170], rim: [255, 255, 255], fade: "none" },
   { name: "Bone Ink",     sig: false, bg: [0, 0, 0], core: [30, 28, 24],  mid: [160, 152, 138], rim: [245, 238, 225], fade: "vertical" },
@@ -77,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 7, GAP = 2;
+  const LW = 8, GAP = 2;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -121,7 +121,7 @@ function growMaze(rng) {
   }
 
   let worms = 0, attempts = 0;
-  const target = 0.65 * n * n;
+  const target = 0.72 * n * n;
   let covered = 0;
   while (covered < target && attempts < 20000) {
     attempts++;
