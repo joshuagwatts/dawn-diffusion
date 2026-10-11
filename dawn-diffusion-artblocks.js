@@ -76,7 +76,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 12, GAP = 4;
+  const LW = 12, GAP = 2;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -106,13 +106,15 @@ function growMaze(rng) {
         if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
         const idx = ny * n + nx;
         occ[idx] = 1;
-        V[idx] = 1.0;
+        // clean tube: bright center, gentle falloff to edge (3D, not muddy)
+        const tube = 1 - 0.16 * (dd / r) * (dd / r);
+        if (tube > V[idx]) V[idx] = tube;
       }
     }
   }
 
   let worms = 0, attempts = 0;
-  const target = 0.58 * n * n;
+  const target = 0.72 * n * n;
   let covered = 0;
   while (covered < target && attempts < 12000) {
     attempts++;
@@ -120,21 +122,21 @@ function growMaze(rng) {
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
     let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = 45 + ((rng() * 35) | 0);
+    const maxSteps = 12 + ((rng() * 14) | 0);
     for (let st = 0; st < maxSteps; st++) {
       // Space-seeking walk: picks the most open direction, weaving into gaps.
       // This packs the maze dense and interlocked.
       let bestA = ang, bestC = -1;
       for (let k = -2; k <= 2; k++) {
         const a = ang + k * 0.5;
-        const nx = px + Math.cos(a) * 12, ny = py + Math.sin(a) * 12;
+        const nx = px + Math.cos(a) * 7, ny = py + Math.sin(a) * 7;
         if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
         const c = clearance(nx, ny);
         if (c > bestC) { bestC = c; bestA = a; }
       }
       if (bestC < LW / 2 + GAP) break;
       ang = bestA;
-      px += Math.cos(ang) * 12; py += Math.sin(ang) * 12;
+      px += Math.cos(ang) * 7; py += Math.sin(ang) * 7;
       path.push([px, py]);
     }
     if (path.length < 4) continue;
@@ -273,10 +275,10 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // wider band of the V field than the cleanup threshold, thickening
       // each worm while the field's natural spacing keeps them separated.
       let bright;
-      // Flat, clean, bright strokes. The V-field blur gives a 1-2px
-      // anti-aliased edge; the tight threshold keeps the interior
-      // uniformly luminous — no gradient, no multiply.
-      bright = smoothstep(0.45, 0.55, v);
+      // Clean 3D tube: the V field carries a subtle center-bright
+      // profile. Map it directly — bright center, softly falling to
+      // the edge. No blotchiness, no multiply.
+      bright = smoothstep(0.35, 0.5, v) * (0.82 + 0.18 * v);
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
       // (maze: whisper of texture only — his maze lines are clean and luminous)
