@@ -77,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 5, GAP = 2;
+  const LW = 11, GAP = 2;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -107,85 +107,37 @@ function growMaze(rng) {
         if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
         const idx = ny * n + nx;
         occ[idx] = 1;
-        // clean tube: bright center, gentle falloff to edge (3D, not muddy)
-        const tube = 1 - 0.16 * (dd / r) * (dd / r);
-        if (tube > V[idx]) V[idx] = tube;
+        // Beveled 3D tube, lit from above: hot center, bright top edge,
+        // falling to shadow at bottom — like Jaiye's copper lines
+        const radial = (dd / r) * (dd / r);
+        const bevel = 1 - 0.45 * radial + 0.35 * (-dy / r) * (1 - radial);
+        if (bevel > V[idx]) V[idx] = bevel;
       }
     }
   }
 
-  // Chunk motifs: 3x3 regions, each with distinct character (Jaiye builds
-  // section by section — dot clusters, waves, curls, verticals, arcs, maze)
-  const motifs = [
-    { angleBias: 0,            turn: 0.3, step: 8, len: [20, 40] },
-    { angleBias: null,         turn: 0.8, step: 5, len: [8, 16]  },
-    { angleBias: null,         turn: 0.0, step: 0, len: [0, 0]   },
-    { angleBias: Math.PI / 2,  turn: 0.3, step: 8, len: [20, 40] },
-    { angleBias: null,         turn: 0.5, step: 7, len: [15, 30] },
-    { angleBias: null,         turn: 1.0, step: 6, len: [10, 20] },
-    { angleBias: Math.PI / 4,  turn: 0.4, step: 7, len: [15, 30] },
-    { angleBias: null,         turn: 0.6, step: 6, len: [12, 24] },
-    { angleBias: null,         turn: 0.5, step: 7, len: [15, 35] },
-  ];
-  const chunkMotif = [];
-  const order = [0,1,2,3,4,5,6,7,8];
-  for (let i = order.length - 1; i > 0; i--) {
-    const j = (rng() * (i + 1)) | 0;
-    const t = order[i]; order[i] = order[j]; order[j] = t;
-  }
-  for (let i = 0; i < 9; i++) chunkMotif[i] = motifs[order[i]];
-  function motifAt(x, y) {
-    const cx = Math.min(2, (x / n * 3) | 0), cy = Math.min(2, (y / n * 3) | 0);
-    return chunkMotif[cy * 3 + cx];
-  }
-
   let worms = 0, attempts = 0;
-  const target = 0.62 * n * n;
+  const target = 0.72 * n * n;
   let covered = 0;
   while (covered < target && attempts < 20000) {
     attempts++;
     const x = 12 + rng() * (n - 24), y = 12 + rng() * (n - 24);
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
-    const motif = motifAt(x, y);
-    if (motif.len[1] === 0) {
-      const ndots = 3 + ((rng() * 3) | 0);
-      for (let dd = 0; dd < ndots; dd++) {
-        const dx = x + (rng() - 0.5) * 20, dy = y + (rng() - 0.5) * 20;
-        const r = 2 + rng() * 1.5;
-        for (let oy = -r; oy <= r; oy++) for (let ox = -r; ox <= r; ox++) {
-          if (ox*ox + oy*oy > r*r) continue;
-          const nx = Math.round(dx+ox), ny = Math.round(dy+oy);
-          if (nx<0||ny<0||nx>=n||ny>=n) continue;
-          occ[ny*n+nx] = 1;
-          V[ny*n+nx] = Math.max(V[ny*n+nx], 0.9);
-        }
-      }
-      continue;
-    }
-    let px = x, py = y;
-    let ang = motif.angleBias !== null ? motif.angleBias + (rng()-0.5)*0.6 : rng() * Math.PI * 2;
+    let px = x, py = y, ang = rng() * Math.PI * 2;
     const path = [[px, py]];
-    const maxSteps = motif.len[0] + ((rng() * (motif.len[1] - motif.len[0])) | 0);
+    const maxSteps = 20 + ((rng() * 30) | 0);
     for (let st = 0; st < maxSteps; st++) {
-      // Motif-driven walk: turn rate and bias come from the chunk's character
       let bestA = ang, bestC = -1;
       for (let k = -2; k <= 2; k++) {
-        const a = ang + k * motif.turn * 0.6;
-        const nx = px + Math.cos(a) * motif.step, ny = py + Math.sin(a) * motif.step;
+        const a = ang + k * 0.45;
+        const nx = px + Math.cos(a) * 7, ny = py + Math.sin(a) * 7;
         if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
         const c = clearance(nx, ny);
         if (c > bestC) { bestC = c; bestA = a; }
       }
       if (bestC < LW / 2 + GAP) break;
       ang = bestA;
-      // pull toward the motif's angle bias (if any) for directional chunks
-      if (motif.angleBias !== null) {
-        let diff = motif.angleBias - ang;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        ang += diff * 0.15;
-      }
-      px += Math.cos(ang) * motif.step; py += Math.sin(ang) * motif.step;
+      px += Math.cos(ang) * 7; py += Math.sin(ang) * 7;
       path.push([px, py]);
     }
     if (path.length < 4) continue;
