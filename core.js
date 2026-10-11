@@ -314,9 +314,12 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       const wy = (vnoise(x / W * 10, y / H * 10 + ny, ny ^ 0x7c21) - 0.5) * 0.009;
       const v = sampleV(V, uUv + wx, vUv + wy);
 
-      // bold stroke: hard edge, solid fill — a brush mark, not a glow
-      const edge = smoothstep(t0 - 0.03, t0 + 0.03, v);
-      const core = smoothstep(t0 + 0.03, t0 + 0.25, v);
+      // bold stroke: hard edge, solid fill — a brush mark, not a glow.
+      // His lines are thick (2-4% of canvas) and never touch: we render a
+      // wider band of the V field than the cleanup threshold, thickening
+      // each worm while the field's natural spacing keeps them separated.
+      const edge = smoothstep(t0 - 0.11, t0 - 0.03, v);
+      const core = smoothstep(t0 - 0.03, t0 + 0.22, v);
       let bright = edge * (1 - 0.25 * core);
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
@@ -359,22 +362,9 @@ function generate(hashStr, size) {
   if (rng() < 0.45) pal = sigs[(rng() * sigs.length) | 0];
   else pal = rest[(rng() * rest.length) | 0];
 
-  // LAYERED PAINT: run the field 3 times with independent seed streams
-  // (derived from the same hash — fully deterministic) and composite by
-  // max. Each layer is ~20% coverage; layered, they reach the dense,
-  // overlapping, stroke-upon-stroke packing of Jaiye's hand. This bypasses
-  // the single-field seed collapse limit.
-  const layers = 3;
-  let V = null;
-  let iters = 0;
-  for (let L = 0; L < layers; L++) {
-    const lrng = hashToRng(hashStr + ":layer" + L);
-    const sim = simulate(lrng, regime);
-    iters = sim.iters;
-    if (!V) V = sim.V;
-    else for (let i = 0; i < V.length; i++) if (sim.V[i] > V[i]) V[i] = sim.V[i];
-  }
-  const sim = { V, iters };
+  // Single field — Jaiye's lines never overlap or cross. One clean
+  // reaction-diffusion field; the worms maintain their own separation.
+  const sim = simulate(rng, regime);
 
   const out = {
     width: size, height: size,
