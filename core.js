@@ -457,6 +457,38 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
 
 /* ---------- top-level: hash -> artwork ---------- */
 
+// Final polish: gentle blur to melt pixel roughness, then unsharp mask
+// to snap edges back. Cleans the look — smooth interiors, crisp strokes.
+function polish(out) {
+  const W = out.width, H = out.height, d = out.data;
+  const blurred = new Float32Array(W * H * 3);
+  // 3x3 gaussian-ish blur (1-2-1 kernel)
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      for (let c = 0; c < 3; c++) {
+        let acc = 0, wsum = 0;
+        for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
+          const nx = x + ox, ny = y + oy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const w = (ox === 0 && oy === 0) ? 4 : (ox === 0 || oy === 0) ? 2 : 1;
+          acc += d[(ny * W + nx) * 4 + c] * w;
+          wsum += w;
+        }
+        blurred[(y * W + x) * 3 + c] = acc / wsum;
+      }
+    }
+  }
+  // unsharp mask: original + 0.55 * (original - blurred)
+  for (let i = 0; i < W * H; i++) {
+    for (let c = 0; c < 3; c++) {
+      const orig = d[i * 4 + c];
+      const b = blurred[i * 3 + c];
+      let s = orig + 0.55 * (orig - b);
+      d[i * 4 + c] = s < 0 ? 0 : s > 1 ? 1 : s;
+    }
+  }
+}
+
 function generate(hashStr, size) {
   size = size || 1080;
   const rng = hashToRng(hashStr);
@@ -480,6 +512,7 @@ function generate(hashStr, size) {
   };
   const seedInt = cyrb53(String(hashStr).toLowerCase(), 0x51ab3c2d);
   renderGlow(sim.V, regime, pal, out, rng, seedInt);
+  polish(out);
 
   // Art Blocks-style traits
   out.features = {
