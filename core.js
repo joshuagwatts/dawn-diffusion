@@ -64,12 +64,106 @@ const REGIMES = [
   // Stable spots are removed by the morphological cleanup in simulate().
   { name: "Worm Field",  F: 0.058, k: 0.065, iters: 7000, t0: 0.25 },
   { name: "Deep Drift",  F: 0.060, k: 0.065, iters: 7500, t0: 0.25 },
+  // Maze: dense labyrinth grown directly (not reaction-diffusion). Thick
+  // non-touching lines packed to ~55% — Jaiye's dense maze hand.
+  { name: "Maze", mode: "maze", t0: 0.25 },
 ];
 
 /* ---------- Gray-Scott simulation (128 x 128 cells) ---------- */
 
 const SIM = 256; // 2026-10-08 — smaller-scale worms (width is fixed in cells, so finer grid = finer strokes)
 const DU = 1.0, DV = 0.5;
+
+// Dense maze grower: plants thick worms one by one, each seeking empty
+// space and keeping its distance. Fills to ~55% with no touching lines.
+// Deterministic from rng. Returns a V field with tube profile (bright
+// center, softer edge) for the renderer.
+function growMaze(rng) {
+  const n = SIM;
+  const LW = 12, GAP = 4;
+  const V = new Float64Array(n * n);
+  const occ = new Uint8Array(n * n);
+
+  function clearance(x, y) {
+    const R = 30;
+    let best = R;
+    const x0 = Math.max(0, Math.round(x - R)), x1 = Math.min(n - 1, Math.round(x + R));
+    const y0 = Math.max(0, Math.round(y - R)), y1 = Math.min(n - 1, Math.round(y + R));
+    for (let yy = y0; yy <= y1; yy += 2) for (let xx = x0; xx <= x1; xx += 2) {
+      if (occ[yy * n + xx]) {
+        const d = Math.hypot(xx - x, yy - y);
+        if (d < best) best = d;
+      }
+    }
+    return best;
+  }
+
+  function drawCapsule(x0, y0, x1, y1, w) {
+    const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0)) + 1;
+    for (let s2 = 0; s2 <= steps; s2++) {
+      const px = x0 + (x1 - x0) * s2 / steps, py = y0 + (y1 - y0) * s2 / steps;
+      const r = w / 2;
+      for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+        const dd = Math.sqrt(dx * dx + dy * dy);
+        if (dd > r) continue;
+        const nx = Math.round(px + dx), ny = Math.round(py + dy);
+        if (nx < 0 || ny < 0 || nx >= n || ny >= n) continue;
+        const idx = ny * n + nx;
+        occ[idx] = 1;
+        V[idx] = 1.0;
+      }
+    }
+  }
+
+  let worms = 0, attempts = 0;
+  const target = 0.58 * n * n;
+  let covered = 0;
+  while (covered < target && attempts < 6000) {
+    attempts++;
+    const x = 12 + rng() * (n - 24), y = 12 + rng() * (n - 24);
+    if (clearance(x, y) < LW / 2 + GAP + 2) continue;
+    let px = x, py = y, ang = rng() * Math.PI * 2;
+    const path = [[px, py]];
+    const maxSteps = 30 + ((rng() * 30) | 0);
+    for (let st = 0; st < maxSteps; st++) {
+      let bestA = ang, bestC = -1;
+      for (let k = -2; k <= 2; k++) {
+        const a = ang + k * 0.5;
+        const nx = px + Math.cos(a) * 8, ny = py + Math.sin(a) * 8;
+        if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
+        const c = clearance(nx, ny);
+        if (c > bestC) { bestC = c; bestA = a; }
+      }
+      if (bestC < LW / 2 + GAP) break;
+      ang = bestA;
+      px += Math.cos(ang) * 8; py += Math.sin(ang) * 8;
+      path.push([px, py]);
+    }
+    if (path.length < 4) continue;
+    for (let i = 1; i < path.length; i++)
+      drawCapsule(path[i-1][0], path[i-1][1], path[i][0], path[i][1], LW);
+    worms++;
+    if (worms % 20 === 0) {
+      covered = 0;
+      for (let i = 0; i < n * n; i++) if (occ[i]) covered++;
+    }
+  }
+  // small dots in the leftover gaps (his maze texture has them)
+  for (let b = 0; b < 40; b++) {
+    const x = 12 + rng() * (n - 24), y = 12 + rng() * (n - 24);
+    if (clearance(x, y) < LW / 2 + GAP + 1) continue;
+    const r = 3 + rng() * 2;
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (dx*dx + dy*dy > r*r) continue;
+      const nx = Math.round(x+dx), ny = Math.round(y+dy);
+      if (nx<0||ny<0||nx>=n||ny>=n) continue;
+      const idx = ny*n+nx;
+      occ[idx] = 1;
+      V[idx] = Math.max(V[idx], 0.9);
+    }
+  }
+  return { V, iters: 0 };
+}
 
 function simulate(rng, regime) {
   const n = SIM;
@@ -318,9 +412,16 @@ function renderGlow(V, regime, pal, out, rng, seedInt) {
       // His lines are thick (2-4% of canvas) and never touch: we render a
       // wider band of the V field than the cleanup threshold, thickening
       // each worm while the field's natural spacing keeps them separated.
-      const edge = smoothstep(t0 - 0.11, t0 - 0.03, v);
-      const core = smoothstep(t0 - 0.03, t0 + 0.22, v);
-      let bright = edge * (1 - 0.25 * core);
+      let bright;
+      if (regime.mode === "maze") {
+        // Maze lines are binary in V: render them bold and bright.
+        // Tube shading comes from the drag/ink texture below.
+        bright = smoothstep(t0 - 0.04, t0 + 0.04, v);
+      } else {
+        const edge = smoothstep(t0 - 0.11, t0 - 0.03, v);
+        const core = smoothstep(t0 - 0.03, t0 + 0.22, v);
+        bright = edge * (1 - 0.25 * core);
+      }
 
       // dry-brush drag: streaky opacity along the stroke, like bristles skipping
       const drag = 0.72 + 0.28 * vnoise(x / W * 30 + nx, y / H * 6 + ny, (nx ^ 0x55aa));
@@ -364,7 +465,7 @@ function generate(hashStr, size) {
 
   // Single field — Jaiye's lines never overlap or cross. One clean
   // reaction-diffusion field; the worms maintain their own separation.
-  const sim = simulate(rng, regime);
+  const sim = regime.mode === "maze" ? growMaze(rng) : simulate(rng, regime);
 
   const out = {
     width: size, height: size,
@@ -395,6 +496,6 @@ function checksum(out) {
   return (h >>> 0).toString(16);
 }
 
-const api = { generate, checksum, hashToRng, randomHex, PALETTES, REGIMES, cyrb53, mulberry32, simulate, renderGlow, sampleV, smoothstep };
+const api = { generate, checksum, hashToRng, randomHex, PALETTES, REGIMES, cyrb53, mulberry32, simulate, growMaze, renderGlow, sampleV, smoothstep };
 if (typeof module !== "undefined" && module.exports) module.exports = api;
 else if (typeof window !== "undefined") window.DawnDiffusion = api;
