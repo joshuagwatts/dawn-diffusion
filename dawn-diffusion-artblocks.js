@@ -124,26 +124,25 @@ function growMaze(rng) {
     const path = [[px, py]];
     const maxSteps = 30 + ((rng() * 30) | 0);
     for (let st = 0; st < maxSteps; st++) {
-      // Confident walk: prefer going straight, only turn when crowded.
-      // Momentum keeps the line smooth; narrow turn range kills the jitters.
-      let bestA = ang, bestScore = -1;
+      // Space-seeking walk: picks the most open direction, weaving into gaps.
+      // This packs the maze dense and interlocked.
+      let bestA = ang, bestC = -1;
       for (let k = -2; k <= 2; k++) {
-        const a = ang + k * 0.42;
-        const nx = px + Math.cos(a) * 10, ny = py + Math.sin(a) * 10;
+        const a = ang + k * 0.5;
+        const nx = px + Math.cos(a) * 8, ny = py + Math.sin(a) * 8;
         if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
         const c = clearance(nx, ny);
-        // score: clearance minus turn penalty (straight = confident)
-        const score = c - Math.abs(k) * 2.5;
-        if (score > bestScore) { bestScore = score; bestA = a; }
+        if (c > bestC) { bestC = c; bestA = a; }
       }
-      if (bestScore < LW / 2 + GAP) break;
+      if (bestC < LW / 2 + GAP) break;
       ang = bestA;
-      px += Math.cos(ang) * 10; py += Math.sin(ang) * 10;
+      px += Math.cos(ang) * 8; py += Math.sin(ang) * 8;
       path.push([px, py]);
     }
     if (path.length < 4) continue;
-    // Chaikin smoothing: round off the corners for flowing, confident curves
-    for (let smooth = 0; smooth < 2; smooth++) {
+    // Heavy Chaikin smoothing: 4 iterations melt the jitters into flowing
+    // curves while keeping the dense interlocked maze layout
+    for (let smooth = 0; smooth < 4; smooth++) {
       const sp = [path[0]];
       for (let i = 0; i < path.length - 1; i++) {
         const p0 = path[i], p1 = path[i + 1];
