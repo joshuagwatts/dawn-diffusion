@@ -77,7 +77,7 @@ const DU = 1.0, DV = 0.5;
 // center, softer edge) for the renderer.
 function growMaze(rng) {
   const n = SIM;
-  const LW = 11, GAP = 2;
+  const LW = 7, GAP = 2;
   const V = new Float64Array(n * n);
   const occ = new Uint8Array(n * n);
 
@@ -95,11 +95,15 @@ function growMaze(rng) {
     return best;
   }
 
+  let capsuleSeed = 0;
   function drawCapsule(x0, y0, x1, y1, w) {
+    capsuleSeed++;
     const steps = Math.ceil(Math.hypot(x1 - x0, y1 - y0)) + 1;
     for (let s2 = 0; s2 <= steps; s2++) {
       const px = x0 + (x1 - x0) * s2 / steps, py = y0 + (y1 - y0) * s2 / steps;
-      const r = w / 2;
+      // organic width: subtle hand variation (±8%) along the stroke
+      const wob = 1 + 0.08 * Math.sin(s2 * 0.7 + capsuleSeed * 1.3) * Math.sin(s2 * 0.23 + capsuleSeed);
+      const r = (w / 2) * wob;
       for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
         const dd = Math.sqrt(dx * dx + dy * dy);
         if (dd > r) continue;
@@ -117,7 +121,7 @@ function growMaze(rng) {
   }
 
   let worms = 0, attempts = 0;
-  const target = 0.72 * n * n;
+  const target = 0.65 * n * n;
   let covered = 0;
   while (covered < target && attempts < 20000) {
     attempts++;
