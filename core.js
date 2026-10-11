@@ -116,7 +116,7 @@ function growMaze(rng) {
   let worms = 0, attempts = 0;
   const target = 0.58 * n * n;
   let covered = 0;
-  while (covered < target && attempts < 6000) {
+  while (covered < target && attempts < 12000) {
     attempts++;
     const x = 12 + rng() * (n - 24), y = 12 + rng() * (n - 24);
     if (clearance(x, y) < LW / 2 + GAP + 2) continue;
@@ -124,20 +124,36 @@ function growMaze(rng) {
     const path = [[px, py]];
     const maxSteps = 30 + ((rng() * 30) | 0);
     for (let st = 0; st < maxSteps; st++) {
-      let bestA = ang, bestC = -1;
+      // Confident walk: prefer going straight, only turn when crowded.
+      // Momentum keeps the line smooth; narrow turn range kills the jitters.
+      let bestA = ang, bestScore = -1;
       for (let k = -2; k <= 2; k++) {
-        const a = ang + k * 0.5;
-        const nx = px + Math.cos(a) * 8, ny = py + Math.sin(a) * 8;
+        const a = ang + k * 0.42;
+        const nx = px + Math.cos(a) * 10, ny = py + Math.sin(a) * 10;
         if (nx < 12 || ny < 12 || nx >= n - 12 || ny >= n - 12) continue;
         const c = clearance(nx, ny);
-        if (c > bestC) { bestC = c; bestA = a; }
+        // score: clearance minus turn penalty (straight = confident)
+        const score = c - Math.abs(k) * 2.5;
+        if (score > bestScore) { bestScore = score; bestA = a; }
       }
-      if (bestC < LW / 2 + GAP) break;
+      if (bestScore < LW / 2 + GAP) break;
       ang = bestA;
-      px += Math.cos(ang) * 8; py += Math.sin(ang) * 8;
+      px += Math.cos(ang) * 10; py += Math.sin(ang) * 10;
       path.push([px, py]);
     }
     if (path.length < 4) continue;
+    // Chaikin smoothing: round off the corners for flowing, confident curves
+    for (let smooth = 0; smooth < 2; smooth++) {
+      const sp = [path[0]];
+      for (let i = 0; i < path.length - 1; i++) {
+        const p0 = path[i], p1 = path[i + 1];
+        sp.push([p0[0]*0.75 + p1[0]*0.25, p0[1]*0.75 + p1[1]*0.25]);
+        sp.push([p0[0]*0.25 + p1[0]*0.75, p0[1]*0.25 + p1[1]*0.75]);
+      }
+      sp.push(path[path.length - 1]);
+      path.length = 0;
+      for (const p of sp) path.push(p);
+    }
     for (let i = 1; i < path.length; i++)
       drawCapsule(path[i-1][0], path[i-1][1], path[i][0], path[i][1], LW);
     worms++;
